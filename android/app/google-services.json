@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "266630102584",
+    "project_id": "date-doing-app",
+    "storage_bucket": "date-doing-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:266630102584:android:469edb2f051b5e7db330cd",
+        "android_client_info": {
+          "package_name": "com.finatech.date_and_doing"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "266630102584-ko9a8el71430kpk6rsdlnr1ruc3vinfp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.finatech.date_and_doing",
+            "certificate_hash": "014085ad3898dcca68cb51420d8ce4c0f0a0a38f"
+          }
+        },
+        {
+          "client_id": "266630102584-vpt1ojpjpa1jiplg38s7pim4f8ndb72l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.finatech.date_and_doing",
+            "certificate_hash": "12a9153b9ead067362b6db1e0c8b69fe8fcedeb5"
+          }
+        },
+        {
+          "client_id": "266630102584-7h6goiurnifkfsiuidgmbtn2u2nuid1o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAqcWDx1h2Gw6E1HPMpFFoHeEPS_zTIkAo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "266630102584-7h6goiurnifkfsiuidgmbtn2u2nuid1o.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
