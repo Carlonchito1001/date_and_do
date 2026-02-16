@@ -77,19 +77,19 @@ flutter {
     source = "../.."
 }
 
-dependencies {
-    // 🔥 Necesario para Java 8+ (requerido por flutter_local_notifications)
-    add("coreLibraryDesugaring", "com.android.tools:desugar_jdk_libs:2.1.4")
+    dependencies {
+        // 🔥 Necesario para Java 8+ (requerido por flutter_local_notifications)
+        add("coreLibraryDesugaring", "com.android.tools:desugar_jdk_libs:2.1.4")
 
-    // 🔥 Firebase BOM
-    implementation(platform("com.google.firebase:firebase-bom:34.6.0"))
+        // 🔥 Firebase BOM
+        implementation(platform("com.google.firebase:firebase-bom:34.6.0"))
 
-    // Firebase Analytics
-    implementation("com.google.firebase:firebase-analytics")
+        // Firebase Analytics
+        implementation("com.google.firebase:firebase-analytics")
 
-    // 🔥 Firebase Messaging (para recibir notificaciones)
-    implementation("com.google.firebase:firebase-messaging")
+        // 🔥 Firebase Messaging (para recibir notificaciones)
+        implementation("com.google.firebase:firebase-messaging")
 
-    // AndroidX essentials
-    implementation("androidx.core:core-ktx:1.10.1")
-}
+        // AndroidX essentials
+        implementation("androidx.core:core-ktx:1.10.1")
+    }

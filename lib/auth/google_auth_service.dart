@@ -33,9 +33,22 @@ class GoogleAuthService {
       token.trim().replaceAll('\n', '').replaceAll('\r', '');
 
   String _pickAccess(Map<String, dynamic> json) {
-    final v = json['access_token'] ?? json['access'];
-    if (v == null) throw Exception('Login response sin access_token/access');
-    return v.toString();
+    // refresh: { "access": "..." }
+    final direct = json['access_token'] ?? json['access'];
+    if (direct != null && direct.toString().isNotEmpty) {
+      return direct.toString();
+    }
+
+    // login: { "data": { "access": "...", "refresh": "..." } }
+    final data = json['data'];
+    if (data is Map<String, dynamic>) {
+      final nested = data['access_token'] ?? data['access'];
+      if (nested != null && nested.toString().isNotEmpty) {
+        return nested.toString();
+      }
+    }
+
+    throw Exception('Login response sin access_token/access');
   }
 
   Future<DdUser> signInWithGoogle() async {

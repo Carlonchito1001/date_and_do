@@ -292,45 +292,45 @@ class _DdLoginState extends State<DdLogin> {
                                 const SizedBox(height: 10),
 
                                 // FACEBOOK
-                                _LoginOptionCard(
-                                  iconBgColor: const Color(0xFFE7F0FF),
-                                  icon: const FaIcon(
-                                    FontAwesomeIcons.facebookF,
-                                    color: Color(0xFF1877F2),
-                                    size: 20,
-                                  ),
-                                  title: 'Continuar con Facebook',
-                                  subtitle: 'Rápido y seguro',
-                                  onTap: _loading ? null : _onFacebookTap,
-                                ),
-                                const SizedBox(height: 10),
+                                // _LoginOptionCard(
+                                //   iconBgColor: const Color(0xFFE7F0FF),
+                                //   icon: const FaIcon(
+                                //     FontAwesomeIcons.facebookF,
+                                //     color: Color(0xFF1877F2),
+                                //     size: 20,
+                                //   ),
+                                //   title: 'Continuar con Facebook',
+                                //   subtitle: 'Rápido y seguro',
+                                //   onTap: _loading ? null : _onFacebookTap,
+                                // ),
+                                // const SizedBox(height: 10),
 
-                                // TELÉFONO
-                                _LoginOptionCard(
-                                  iconBgColor: const Color(0xFFE7FFF1),
-                                  icon: const FaIcon(
-                                    FontAwesomeIcons.phone,
-                                    color: Colors.green,
-                                    size: 20,
-                                  ),
-                                  title: 'Continuar con teléfono',
-                                  subtitle: 'Recibe un código por SMS',
-                                  onTap: _loading ? null : _onPhoneTap,
-                                ),
-                                const SizedBox(height: 10),
+                                // // TELÉFONO
+                                // _LoginOptionCard(
+                                //   iconBgColor: const Color(0xFFE7FFF1),
+                                //   icon: const FaIcon(
+                                //     FontAwesomeIcons.phone,
+                                //     color: Colors.green,
+                                //     size: 20,
+                                //   ),
+                                //   title: 'Continuar con teléfono',
+                                //   subtitle: 'Recibe un código por SMS',
+                                //   onTap: _loading ? null : _onPhoneTap,
+                                // ),
+                                // const SizedBox(height: 10),
 
-                                // CORREO
-                                _LoginOptionCard(
-                                  iconBgColor: const Color(0xFFEDE7FF),
-                                  icon: const Icon(
-                                    Icons.mail_outline_rounded,
-                                    color: Color(0xFF6D3BFF),
-                                    size: 22,
-                                  ),
-                                  title: 'Continuar con correo',
-                                  subtitle: 'Código por correo electrónico',
-                                  onTap: _loading ? null : _onEmailTap,
-                                ),
+                                // // CORREO
+                                // _LoginOptionCard(
+                                //   iconBgColor: const Color(0xFFEDE7FF),
+                                //   icon: const Icon(
+                                //     Icons.mail_outline_rounded,
+                                //     color: Color(0xFF6D3BFF),
+                                //     size: 22,
+                                //   ),
+                                //   title: 'Continuar con correo',
+                                //   subtitle: 'Código por correo electrónico',
+                                //   onTap: _loading ? null : _onEmailTap,
+                                // ),
                               ],
                             ),
                           ),

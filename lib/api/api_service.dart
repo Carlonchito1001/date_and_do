@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:date_and_doing/models/dd_date.dart';
+import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:date_and_doing/api/api_endpoints.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
+import 'package:flutter/foundation.dart';
 
 class ApiService {
   final SharedPreferencesService _prefs = SharedPreferencesService();
@@ -15,14 +17,37 @@ class ApiService {
   }
 
   String _pickAccess(Map<String, dynamic> json) {
-    final v = json['access_token'] ?? json['access'];
-    if (v == null) throw Exception('Respuesta sin access_token/access');
-    return v.toString();
+    
+    final direct = json['access_token'] ?? json['access'];
+    if (direct != null && direct.toString().isNotEmpty) {
+      return direct.toString();
+    }
+
+    
+    final data = json['data'];
+    if (data is Map<String, dynamic>) {
+      final nested = data['access_token'] ?? data['access'];
+      if (nested != null && nested.toString().isNotEmpty) {
+        return nested.toString();
+      }
+    }
+
+    throw Exception('Response sin access_token/access');
   }
 
   String? _pickRefresh(Map<String, dynamic> json) {
-    final v = json['refresh_token'] ?? json['refresh'];
-    return v?.toString();
+   
+    final direct = json['refresh_token'] ?? json['refresh'];
+    if (direct != null && direct.toString().isNotEmpty) {
+      return direct.toString();
+    }
+
+    final data = json['data'];
+    if (data is Map<String, dynamic>) {
+      final nested = data['refresh_token'] ?? data['refresh'];
+      return nested?.toString();
+    }
+    return null;
   }
 
   bool _shouldRefresh(http.Response res) {
@@ -136,8 +161,14 @@ class ApiService {
     if (response.statusCode == 200 || response.statusCode == 201) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
 
+      debugPrint('Respuesta: $data');
+
       final access = _pickAccess(data);
       await _prefs.saveAccessToken(access);
+
+      final savedAccess = await _prefs.getAccessToken();
+      print("ACCESS EN MEMORIA => $access");
+      print("ACCESS GUARDADO => $savedAccess");
 
       final refresh = _pickRefresh(data);
       if (refresh != null && refresh.isNotEmpty) {
@@ -269,7 +300,7 @@ class ApiService {
   }
 
   // ================== LIKES ==================
-  Future<void> likes({
+  Future<Map<String, dynamic>> likes({
     required String accessToken,
     required int targetUserId,
     required String type,
@@ -289,47 +320,44 @@ class ApiService {
       );
     });
 
-    if (response.statusCode == 200 || response.statusCode == 201) return;
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
 
     throw Exception(
       'Failed to like user: ${response.statusCode} - ${response.body}',
     );
   }
 
-
-
   Future<Map<String, dynamic>> swipeRaw({
-  required int targetUserId,
-  required String action, // "LIKE" o "DISLIKE"
-}) async {
-  final response = await _requestWithRefresh((token) {
-    return http.post(
-      Uri.parse(ApiEndpoints.swipes),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'use_int_target': targetUserId,
-        'ddw_txt_action': action,
-      }),
-    );
-  });
+    required int targetUserId,
+    required String action, // "LIKE" o "DISLIKE"
+  }) async {
+    final response = await _requestWithRefresh((token) {
+      return http.post(
+        Uri.parse(ApiEndpoints.swipes),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'use_int_target': targetUserId,
+          'ddw_txt_action': action,
+        }),
+      );
+    });
 
-  // 👇 imprime todo para ver qué llega
-  print("SWIPE STATUS: ${response.statusCode}");
-  print("SWIPE BODY: ${response.body}");
+    // 👇 imprime todo para ver qué llega
+    print("SWIPE STATUS: ${response.statusCode}");
+    print("SWIPE BODY: ${response.body}");
 
-  if (response.statusCode == 200 || response.statusCode == 201) {
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception("Swipe failed: ${response.statusCode} - ${response.body}");
   }
-
-  throw Exception("Swipe failed: ${response.statusCode} - ${response.body}");
-}
-
-
-
 
   // ================== REFRESH TOKEN ==================
   Future<Map<String, dynamic>> refreshToken({

@@ -43,18 +43,18 @@ class _DdHomeState extends State<DdHome> {
         ),
         centerTitle: false,
         actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            child: ElevatedButton(
-              onPressed: () {},
-              child: Text('Activar cuenta', style: TextStyle(fontSize: 10)),
-            ),
-          ),
-          SizedBox(width: 10),
-          CircleAvatar(child: Icon(Icons.person_rounded)),
+          // Padding(
+          //   padding: const EdgeInsets.symmetric(vertical: 5),
+          //   child: ElevatedButton(
+          //     onPressed: () {},
+          //     child: Text('Activar cuenta', style: TextStyle(fontSize: 10)),
+          //   ),
+          // ),
+          // SizedBox(width: 10),
+          // CircleAvatar(child: Icon(Icons.person_rounded)),
           IconButton(
             onPressed: () {},
-            icon: Icon(Icons.notifications_outlined),
+            icon: Icon(Icons.person_rounded, color: cs.onSurface),
           ),
         ],
       ),

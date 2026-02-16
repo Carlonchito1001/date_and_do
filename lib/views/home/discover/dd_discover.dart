@@ -99,6 +99,77 @@ class _DdDiscoverState extends State<DdDiscover>
     }
   }
 
+  Future<void> _showNewMatchDialog(Map<String, dynamic> other) async {
+    final name = (other["fullname"] ?? "Nuevo match").toString();
+    final photo = (other["photo"] ?? "").toString();
+
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 6),
+                const Text(
+                  "¡Es un Match!",
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: SizedBox(
+                    width: 120,
+                    height: 120,
+                    child: photo.isEmpty
+                        ? const Icon(Icons.person, size: 90)
+                        : Image.network(photo, fit: BoxFit.cover),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text("Seguir swiping"),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          // aquí luego navegas al chat si quieres
+                          // Navigator.push(...ChatPage...)
+                        },
+                        child: const Text("Enviar mensaje"),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   int? _currentTargetUserId() {
     if (users.isEmpty) return null;
     if (currentIndex < 0 || currentIndex >= users.length) return null;
@@ -124,11 +195,22 @@ class _DdDiscoverState extends State<DdDiscover>
     setState(() => sendingSwipe = true);
 
     try {
-      await ApiService().likes(
+      final res = await ApiService().likes(
         accessToken: token,
         targetUserId: targetUserId,
         type: type,
       );
+
+      if (!mounted) return;
+
+      // ✅ Si hay match, muestra popup tipo Tinder
+      final match = res["match"];
+      if (match != null) {
+        final other = match["other_user"] as Map<String, dynamic>?;
+        if (other != null) {
+          await _showNewMatchDialog(other);
+        }
+      }
 
       if (!mounted) return;
 

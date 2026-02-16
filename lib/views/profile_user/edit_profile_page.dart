@@ -8,6 +8,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
 
+// ✅ Picker País/Estado/Ciudad (rápido)
+import 'package:country_state_city_picker/country_state_city_picker.dart';
+
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
 
@@ -18,6 +21,9 @@ class EditProfilePage extends StatefulWidget {
 class _EditProfilePageState extends State<EditProfilePage> {
   String? _selectedCountry;
   String? _selectedCity;
+
+  // (opcional) la librería también da "state/province"
+  String? _selectedState;
 
   final TextEditingController _occupationController = TextEditingController();
   final TextEditingController _aboutController = TextEditingController();
@@ -35,9 +41,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   bool _saving = false;
 
   static const int _maxAboutChars = 300;
-
-  final List<String> _countries = ["Perú", "México", "Argentina", "Chile"];
-  final List<String> _cities = ["Iquitos", "Lima", "Cusco", "Arequipa"];
 
   @override
   void initState() {
@@ -467,7 +470,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
               const SizedBox(height: 16),
 
-              // No editable section (iOS settings group)
+              // No editable section
               _sectionTitle(context, "Datos protegidos"),
               const SizedBox(height: 8),
               _card(
@@ -500,31 +503,44 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 context,
                 child: Column(
                   children: [
+                    // ✅ REEMPLAZO RÁPIDO: País/Estado/Ciudad automáticos
                     _fieldBlock(
                       context,
-                      label: "País",
-                      child: _buildDropdownField(
-                        context,
-                        value: _selectedCountry,
-                        hint: "Selecciona un país",
-                        items: _countries,
-                        onChanged: (value) =>
-                            setState(() => _selectedCountry = value),
+                      label: "País / Ciudad",
+                      child: SelectState(
+                        // Si quieres que muestre "Select Country", etc. en español,
+                        // lo dejamos así; si deseas, luego lo personalizamos visualmente.
+                        onCountryChanged: (value) {
+                          setState(() {
+                            _selectedCountry = value;
+                            _selectedState = null;
+                            _selectedCity =
+                                null; // importante: reset city al cambiar país
+                          });
+                        },
+                        onStateChanged: (value) {
+                          // puedes ignorar si no usas estados/provincias
+                          setState(() => _selectedState = value);
+                        },
+                        onCityChanged: (value) {
+                          setState(() => _selectedCity = value);
+                        },
                       ),
                     ),
-                    _divider(context),
-                    _fieldBlock(
-                      context,
-                      label: "Ciudad",
-                      child: _buildDropdownField(
+
+                    // (Opcional) mostrar lo que quedó seleccionado con tu estilo
+                    if ((_selectedCountry ?? '').isNotEmpty ||
+                        (_selectedCity ?? '').isNotEmpty) ...[
+                      _divider(context),
+                      _readOnlyRow(
                         context,
-                        value: _selectedCity,
-                        hint: "Selecciona una ciudad",
-                        items: _cities,
-                        onChanged: (value) =>
-                            setState(() => _selectedCity = value),
+                        icon: Icons.public,
+                        title: "Seleccionado",
+                        value:
+                            "${_selectedCountry ?? '—'} - ${_selectedCity ?? '—'}",
                       ),
-                    ),
+                    ],
+
                     _divider(context),
                     _fieldBlock(
                       context,
@@ -576,7 +592,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
               const SizedBox(height: 16),
 
-              // Security info (tu card, pero con look iOS)
               _card(context, child: _buildSecurityCard(context)),
 
               const SizedBox(height: 18),
@@ -685,11 +700,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
             ),
           ),
         ),
-        Text(
-          value,
-          style: tt.bodyMedium?.copyWith(
-            color: cs.onSurface.withOpacity(0.65),
-            fontWeight: FontWeight.w700,
+        Flexible(
+          child: Text(
+            value,
+            overflow: TextOverflow.ellipsis,
+            style: tt.bodyMedium?.copyWith(
+              color: cs.onSurface.withOpacity(0.65),
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ],
@@ -719,34 +737,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
         child,
         if (footer != null) ...[const SizedBox(height: 8), footer],
       ],
-    );
-  }
-
-  // ====== tus helpers originales (solo reusados) ======
-
-  Widget _buildDropdownField(
-    BuildContext context, {
-    required String? value,
-    required String hint,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return DropdownButtonFormField<String>(
-      value: value,
-      decoration: _inputDecoration(context),
-      icon: Icon(Icons.arrow_drop_down, color: cs.onSurface.withOpacity(0.7)),
-      hint: Text(hint),
-      items: items
-          .map((e) => DropdownMenuItem<String>(value: e, child: Text(e)))
-          .toList(),
-      onChanged: onChanged,
-      style: theme.textTheme.bodyMedium?.copyWith(
-        color: cs.onSurface,
-        fontWeight: FontWeight.w700,
-      ),
     );
   }
 
