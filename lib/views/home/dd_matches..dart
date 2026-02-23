@@ -1,4 +1,5 @@
 import 'package:date_and_doing/services/shared_preferences_service.dart';
+import 'package:date_and_doing/views/home/dd_home.dart';
 import 'package:flutter/material.dart';
 import 'package:date_and_doing/api/api_service.dart';
 import 'dd_chat_page.dart';
@@ -150,69 +151,73 @@ class _DdMatchesState extends State<DdMatches> {
           foto: foto,
         ),
       ),
-    );
+    ).then((_) => _loadMatches());
   }
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tus Matches'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: _loading ? null : _loadMatches,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
+      // appBar: AppBar(
+      //   title: const Text('Tus Matches'),
+      //   centerTitle: true,
+      //   actions: [
+      //     IconButton(
+      //       onPressed: _loading ? null : _loadMatches,
+      //       icon: const Icon(Icons.refresh),
+      //     ),
+      //   ],
+      // ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Conexiones recientes",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        child: RefreshIndicator(
+          onRefresh: _loadMatches,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Conexiones recientes",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Toca un match para iniciar el chat ✨",
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: cs.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                "Toca un match para iniciar el chat ✨",
-                style: TextStyle(fontSize: 13, color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
               if (_loading)
-                const Expanded(
-                  child: Center(child: CircularProgressIndicator()),
-                )
+                const SliverFillRemaining(child: _MatchesSkeleton())
               else if (_error != null)
-                Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _error!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                        const SizedBox(height: 12),
-                        ElevatedButton(
-                          onPressed: _loadMatches,
-                          child: const Text('Reintentar'),
-                        ),
-                      ],
-                    ),
+                SliverFillRemaining(
+                  child: _MatchesErrorState(
+                    message: _error!,
+                    onRetry: _loadMatches,
                   ),
                 )
               else if (matches.isEmpty)
-                const Expanded(
-                  child: Center(child: Text('Aún no tienes matches 🙌')),
+                SliverFillRemaining(
+                  child: _EmptyMatchesState(onRefresh: _loadMatches),
                 )
               else
-                Expanded(
-                  child: GridView.builder(
+                SliverPadding(
+                  padding: const EdgeInsets.all(12),
+                  sliver: SliverGrid.builder(
                     itemCount: matches.length,
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
@@ -230,17 +235,21 @@ class _DdMatchesState extends State<DdMatches> {
                       final isNew = _isNewMatch(item);
                       final newLabel = _newMatchLabel(item);
 
-                      return _MatchCard(
-                        nombre: nombre,
-                        edad: edad,
-                        foto: foto,
-                        statusText: isNew
-                            ? "$newLabel 💖"
-                            : _statusText(status),
-                        statusColor: isNew
-                            ? Colors.pinkAccent
-                            : _statusColor(status),
-                        onTap: () => _openChatFromMatch(item),
+                      return AnimatedOpacity(
+                        opacity: 1.0,
+                        duration: Duration(milliseconds: 300 + (index * 50)),
+                        child: _MatchCard(
+                          nombre: nombre,
+                          edad: edad,
+                          foto: foto,
+                          statusText: isNew
+                              ? "$newLabel 💖"
+                              : _statusText(status),
+                          statusColor: isNew
+                              ? Colors.pinkAccent
+                              : _statusColor(status),
+                          onTap: () => _openChatFromMatch(item),
+                        ),
                       );
                     },
                   ),
@@ -252,6 +261,271 @@ class _DdMatchesState extends State<DdMatches> {
     );
   }
 }
+
+// ================== EMPTY STATE ==================
+
+class _EmptyMatchesState extends StatelessWidget {
+  final Future<void> Function() onRefresh;
+
+  const _EmptyMatchesState({required this.onRefresh});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: cs.primaryContainer.withOpacity(0.3),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.favorite_border_rounded,
+                size: 64,
+                color: cs.primary,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              '¡Aún no tienes matches!',
+              style: textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: cs.onSurface,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Sigue deslizando para encontrar a alguien especial 💕',
+              style: textTheme.bodyMedium?.copyWith(
+                color: cs.onSurface.withOpacity(0.6),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            FilledButton.icon(
+              onPressed: () => onRefresh(),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Actualizar'),
+              style: FilledButton.styleFrom(
+                backgroundColor: cs.primary,
+                foregroundColor: cs.onPrimary,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DdHome()),
+                );
+              },
+              icon: const Icon(Icons.explore_rounded),
+              label: const Text('Descubrir personas'),
+              style: TextButton.styleFrom(foregroundColor: cs.primary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ================== SKELETON LOADER ==================
+
+class _MatchesSkeleton extends StatefulWidget {
+  const _MatchesSkeleton();
+
+  @override
+  State<_MatchesSkeleton> createState() => _MatchesSkeletonState();
+}
+
+class _MatchesSkeletonState extends State<_MatchesSkeleton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat();
+
+    _animation = Tween<double>(
+      begin: -1.0,
+      end: 2.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 6,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.72,
+      ),
+      itemBuilder: (context, i) {
+        return _ShimmerCard(
+          animation: _animation,
+          color: cs.surfaceContainerHighest,
+        );
+      },
+    );
+  }
+}
+
+class _ShimmerCard extends StatelessWidget {
+  final Animation<double> animation;
+  final Color color;
+
+  const _ShimmerCard({required this.animation, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        return ShaderMask(
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [color, color.withOpacity(0.5), color],
+              stops: const [0.0, 0.5, 1.0],
+              transform: _SlidingGradientTransform(
+                slidePercent: animation.value,
+              ),
+            ).createShader(bounds);
+          },
+          child: child,
+        );
+      },
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        elevation: 5,
+        shadowColor: Colors.black26,
+        clipBehavior: Clip.antiAlias,
+        child: Container(color: color),
+      ),
+    );
+  }
+}
+
+// ================== ERROR STATE ==================
+
+class _MatchesErrorState extends StatelessWidget {
+  final String message;
+  final Future<void> Function() onRetry;
+
+  const _MatchesErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: cs.errorContainer.withOpacity(0.3),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.error_outline_rounded,
+                size: 64,
+                color: cs.error,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              '¡Ups! Algo salió mal',
+              style: textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: cs.onSurface,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: textTheme.bodyMedium?.copyWith(
+                color: cs.onSurface.withOpacity(0.7),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            FilledButton.icon(
+              onPressed: () => onRetry(),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Reintentar'),
+              style: FilledButton.styleFrom(
+                backgroundColor: cs.primary,
+                foregroundColor: cs.onPrimary,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ================== SHIMMER WIDGET ==================
+
+class _SlidingGradientTransform extends GradientTransform {
+  final double slidePercent;
+
+  const _SlidingGradientTransform({required this.slidePercent});
+
+  @override
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
+    return Matrix4.translationValues(bounds.width * slidePercent, 0.0, 0.0);
+  }
+}
+
+// ================== MATCH CARD ==================
 
 class _MatchCard extends StatelessWidget {
   final String nombre;
@@ -282,7 +556,22 @@ class _MatchCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
-            Positioned.fill(child: Image.network(foto, fit: BoxFit.cover)),
+            Positioned.fill(
+              child: Image.network(
+                foto,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.grey[300],
+                    child: const Icon(
+                      Icons.person_rounded,
+                      size: 64,
+                      color: Colors.grey,
+                    ),
+                  );
+                },
+              ),
+            ),
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(

@@ -99,8 +99,7 @@ class _DdDatesListPageState extends State<DdDatesListPage> {
           padding: const EdgeInsets.all(12),
           child: Column(
             children: [
-              if (_loading)
-                const LinearProgressIndicator(minHeight: 2),
+              if (_loading) const LinearProgressIndicator(minHeight: 2),
 
               if (_error != null)
                 Container(
@@ -112,7 +111,10 @@ class _DdDatesListPageState extends State<DdDatesListPage> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: cs.onErrorContainer),
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: cs.onErrorContainer,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -127,7 +129,10 @@ class _DdDatesListPageState extends State<DdDatesListPage> {
                       ),
                       TextButton(
                         onPressed: _load,
-                        child: Text("Reintentar", style: TextStyle(color: cs.onErrorContainer)),
+                        child: Text(
+                          "Reintentar",
+                          style: TextStyle(color: cs.onErrorContainer),
+                        ),
                       ),
                     ],
                   ),

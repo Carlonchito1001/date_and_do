@@ -23,6 +23,7 @@ class ApiEndpoints {
   static String messagesByMatch(int matchId) =>
       "${messages}?ddm_int_id=$matchId";
   static String datesByMatch(int matchId) => "${dates}?ddm_int_id=$matchId";
+  static String markMessagesAsRead = "$baseUrl/dateanddo/messages/mark_read/";
   static String lugares(String category) =>
       "https://ig.finatech.com.pe/api.php/profiles?category=$category&limit=20";
 }

@@ -1,9 +1,11 @@
+import 'package:date_and_doing/views/profile_user/match_preferences_page.dart';
 import 'package:flutter/material.dart';
 import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
 
 import 'widgets/discover_card.dart';
 import 'widgets/discover_actions.dart';
+import 'widgets/new_match_screen.dart';
 
 class DdDiscover extends StatefulWidget {
   const DdDiscover({super.key});
@@ -18,6 +20,7 @@ class _DdDiscoverState extends State<DdDiscover>
   int currentIndex = 0;
   bool loading = true;
   bool sendingSwipe = false;
+  String? error;
 
   late final AnimationController _controller;
   Animation<Offset>? _posAnim;
@@ -71,6 +74,7 @@ class _DdDiscoverState extends State<DdDiscover>
   Future<void> _loadSuggestions() async {
     setState(() {
       loading = true;
+      error = null;
       currentIndex = 0;
       users = [];
     });
@@ -78,7 +82,10 @@ class _DdDiscoverState extends State<DdDiscover>
     final token = await SharedPreferencesService().getAccessToken();
     if (token == null) {
       if (!mounted) return;
-      setState(() => loading = false);
+      setState(() {
+        loading = false;
+        error = 'No hay sesión activa. Inicia sesión nuevamente.';
+      });
       return;
     }
 
@@ -92,81 +99,42 @@ class _DdDiscoverState extends State<DdDiscover>
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => loading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error cargando sugerencias: $e')));
+      setState(() {
+        loading = false;
+        error = 'Error al cargar sugerencias. Intenta nuevamente.';
+      });
     }
   }
 
-  Future<void> _showNewMatchDialog(Map<String, dynamic> other) async {
+  Future<void> _showNewMatchScreen(Map<String, dynamic> match) async {
+    final other = match["other_user"] as Map<String, dynamic>?;
+    if (other == null) return;
+
     final name = (other["fullname"] ?? "Nuevo match").toString();
     final photo = (other["photo"] ?? "").toString();
+    
+    // Extraer IDs del match
+    final matchId = match["ddm_int_id"] ?? match["id"] ?? match["match_id"];
+    final otherUserId = other["use_int_id"] ?? 0;
 
-    await showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (_) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 6),
-                const Text(
-                  "¡Es un Match!",
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: SizedBox(
-                    width: 120,
-                    height: 120,
-                    child: photo.isEmpty
-                        ? const Icon(Icons.person, size: 90)
-                        : Image.network(photo, fit: BoxFit.cover),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text("Seguir swiping"),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          // aquí luego navegas al chat si quieres
-                          // Navigator.push(...ChatPage...)
-                        },
-                        child: const Text("Enviar mensaje"),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    // Obtener foto del usuario actual
+    final userInfo = await SharedPreferencesService().getUserInfo();
+    final currentUserPhoto = userInfo?['use_txt_avatar']?.toString();
+
+    if (!mounted) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => NewMatchScreen(
+          matchedUserName: name,
+          matchedUserPhoto: photo,
+          matchId: matchId is int ? matchId : int.parse(matchId.toString()),
+          otherUserId: otherUserId is int ? otherUserId : int.parse(otherUserId.toString()),
+          currentUserPhoto: currentUserPhoto,
+        ),
+      ),
     );
   }
 
@@ -208,7 +176,7 @@ class _DdDiscoverState extends State<DdDiscover>
       if (match != null) {
         final other = match["other_user"] as Map<String, dynamic>?;
         if (other != null) {
-          await _showNewMatchDialog(other);
+          await _showNewMatchScreen(match);
         }
       }
 
@@ -410,25 +378,15 @@ class _DdDiscoverState extends State<DdDiscover>
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const _DiscoverSkeleton();
+    }
+
+    if (error != null) {
+      return _DiscoverErrorState(message: error!, onRetry: _loadSuggestions);
     }
 
     if (users.isEmpty) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('No hay sugerencias disponibles'),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _loadSuggestions,
-                child: const Text('Reintentar'),
-              ),
-            ],
-          ),
-        ),
-      );
+      return _EmptyDiscoverState(onRefresh: _loadSuggestions);
     }
 
     return Scaffold(
@@ -493,5 +451,380 @@ class _DdDiscoverState extends State<DdDiscover>
         ),
       ),
     );
+  }
+}
+
+// ================== SKELETON LOADER ==================
+
+class _DiscoverSkeleton extends StatefulWidget {
+  const _DiscoverSkeleton();
+
+  @override
+  State<_DiscoverSkeleton> createState() => _DiscoverSkeletonState();
+}
+
+class _DiscoverSkeletonState extends State<_DiscoverSkeleton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat();
+
+    _animation = Tween<double>(
+      begin: -1.0,
+      end: 2.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 16),
+          child: Column(
+            children: [
+              Expanded(
+                child: Center(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 18),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      color: cs.surface,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 18,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        _ShimmerContainer(
+                          animation: _animation,
+                          child: Container(
+                            height: 320,
+                            decoration: BoxDecoration(
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(24),
+                              ),
+                              color: cs.surfaceContainerHighest,
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _ShimmerContainer(
+                                animation: _animation,
+                                child: Container(
+                                  width: 180,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    color: cs.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              _ShimmerContainer(
+                                animation: _animation,
+                                child: Container(
+                                  width: 140,
+                                  height: 16,
+                                  decoration: BoxDecoration(
+                                    color: cs.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              _ShimmerContainer(
+                                animation: _animation,
+                                child: Container(
+                                  width: double.infinity,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    color: cs.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerHighest,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerHighest,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerHighest,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ================== EMPTY STATE ==================
+
+class _EmptyDiscoverState extends StatelessWidget {
+  final Future<void> Function() onRefresh;
+
+  const _EmptyDiscoverState({required this.onRefresh});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer.withOpacity(0.3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.search_rounded,
+                    size: 64,
+                    color: cs.primary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  '¡No hay más personas cerca!',
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: cs.onSurface,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Ajusta tus preferencias o vuelve más tarde para descubrir nuevas personas',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: cs.onSurface.withOpacity(0.6),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                FilledButton.icon(
+                  onPressed: () => onRefresh(),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Buscar más'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: cs.primary,
+                    foregroundColor: cs.onPrimary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => MatchPreferencesPage()),
+                    );
+                  },
+                  icon: const Icon(Icons.tune_rounded),
+                  label: const Text('Ajustar preferencias'),
+                  style: TextButton.styleFrom(foregroundColor: cs.primary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ================== ERROR STATE ==================
+
+class _DiscoverErrorState extends StatelessWidget {
+  final String message;
+  final Future<void> Function() onRetry;
+
+  const _DiscoverErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: cs.errorContainer.withOpacity(0.3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.error_outline_rounded,
+                    size: 64,
+                    color: cs.error,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  '¡Ups! Algo salió mal',
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: cs.onSurface,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                FilledButton.icon(
+                  onPressed: () => onRetry(),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Reintentar'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: cs.primary,
+                    foregroundColor: cs.onPrimary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ================== SHIMMER WIDGET ==================
+
+class _ShimmerContainer extends StatelessWidget {
+  final Animation<double> animation;
+  final Widget child;
+
+  const _ShimmerContainer({required this.animation, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        return ShaderMask(
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                cs.surfaceContainerHighest,
+                cs.surfaceContainerHighest.withOpacity(0.5),
+                cs.surfaceContainerHighest,
+              ],
+              stops: const [0.0, 0.5, 1.0],
+              transform: _SlidingGradientTransform(
+                slidePercent: animation.value,
+              ),
+            ).createShader(bounds);
+          },
+          child: child,
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+class _SlidingGradientTransform extends GradientTransform {
+  final double slidePercent;
+
+  const _SlidingGradientTransform({required this.slidePercent});
+
+  @override
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
+    return Matrix4.translationValues(bounds.width * slidePercent, 0.0, 0.0);
   }
 }

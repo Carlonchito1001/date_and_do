@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:date_and_doing/api/api_service.dart';
+import 'package:date_and_doing/views/history/history_levels.dart';
 
 import 'lugar_picker_sheet.dart';
+import 'place_list_item.dart';
 
 class DdCreateActivityPage extends StatefulWidget {
   final int matchId;
@@ -24,7 +26,7 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
   String _selectedId = "playa";
 
   // ✅ Lugar elegido desde la API externa
-  LugarLite? _selectedLugar;
+  PlaceItem? _selectedLugar;
 
   final _dayCtrl = TextEditingController();
   final _monthCtrl = TextEditingController();
@@ -36,7 +38,7 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
   final List<_ActivityItem> _activities = const [
     _ActivityItem(id: "playa", emoji: "🏖️", label: "Día de Playa"),
     _ActivityItem(id: "parque", emoji: "🌳", label: "Salida al Parque"),
-    _ActivityItem(id: "cena", emoji: "🍽️", label: "Cena Romántica"),
+    // _ActivityItem(id: "cena", emoji: "🍽️", label: "Cena Romántica"),
     _ActivityItem(id: "cafe", emoji: "☕", label: "Café"),
     _ActivityItem(id: "cine", emoji: "🎬", label: "Cine"),
     _ActivityItem(id: "museo", emoji: "🏛️", label: "Museo"),
@@ -44,6 +46,7 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
     _ActivityItem(id: "senderismo", emoji: "🥾", label: "Senderismo"),
     _ActivityItem(id: "picnic", emoji: "🧺", label: "Picnic"),
     _ActivityItem(id: "tienda", emoji: "🛍️", label: "Tienda"),
+    _ActivityItem(id: "restaurante", emoji: "🍽️", label: "Restaurante"),
     _ActivityItem(id: "otra", emoji: "✨", label: "Otra..."),
   ];
 
@@ -59,7 +62,16 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
   _ActivityItem get _selectedActivity =>
       _activities.firstWhere((a) => a.id == _selectedId);
 
-  bool get _needsPlacePicker => _selectedId == "tienda";
+  // Categorías que requieren seleccionar un lugar específico de la API
+  static const List<String> _placePickerCategories = [
+    "tienda",
+    "restaurante",
+    "cafe",
+    "cine",
+    "museo",
+  ];
+
+  bool get _needsPlacePicker => _placePickerCategories.contains(_selectedId);
 
   DateTime? _tryParseDate() {
     final dd = int.tryParse(_dayCtrl.text.trim());
@@ -130,17 +142,34 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
     if (picked != null) setState(() => _selectedTime = picked);
   }
 
+  String _getPlacePickerTitle() {
+    switch (_selectedId) {
+      case "tienda":
+        return "Tiendas disponibles";
+      case "restaurante":
+        return "Restaurantes disponibles";
+      case "cafe":
+        return "Cafeterías disponibles";
+      case "cine":
+        return "Cines disponibles";
+      case "museo":
+        return "Museos disponibles";
+      default:
+        return "Lugares disponibles";
+    }
+  }
+
   Future<void> _openLugarPicker() async {
-    // 👇 aquí le pasas la categoría (tienda)
-    final picked = await showModalBottomSheet<LugarLite>(
+    // 👇 aquí le pasas la categoría seleccionada
+    final picked = await showModalBottomSheet<PlaceItem>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => LugarPickerSheet(
         api: _api,
-        category: _selectedId, // "tienda"
+        category: _selectedId,
         selectedId: _selectedLugar?.id,
-        title: "Tiendas disponibles",
+        title: _getPlacePickerTitle(),
       ),
     );
 
@@ -361,8 +390,8 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
                             if (!_needsPlacePicker) _selectedLugar = null;
                           });
 
-                          // si es tienda, abre selector premium
-                          if (item.id == "tienda") {
+                          // si la actividad requiere lugar, abre selector
+                          if (_placePickerCategories.contains(item.id)) {
                             await _openLugarPicker();
                           }
                         },
@@ -898,6 +927,7 @@ class _SuccessDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     final dd = created.date.day.toString().padLeft(2, "0");
     final mm = created.date.month.toString().padLeft(2, "0");
@@ -907,59 +937,169 @@ class _SuccessDialog extends StatelessWidget {
     final dateText = "$dd/$mm/$yyyy $hh:$mi";
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 360),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Header con gradiente
             Container(
-              width: 54,
-              height: 54,
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: cs.primary.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(colors: [cs.primary, cs.secondary]),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
               ),
-              child: Icon(Icons.check_circle, color: cs.primary, size: 30),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              "¡Cita creada!",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              "Se creó la actividad con ${created.partnerName}.",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: cs.onSurface.withOpacity(0.7),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 14),
-            _infoRow("Actividad", created.activityLabel, cs),
-            const SizedBox(height: 8),
-            _infoRow("Fecha", dateText, cs),
-            const SizedBox(height: 8),
-            _infoRow("ID", created.id, cs),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: cs.primary,
-                  foregroundColor: cs.onPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+              child: Column(
+                children: [
+                  Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_rounded,
+                      color: Colors.white,
+                      size: 40,
+                    ),
                   ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  "Listo",
-                  style: TextStyle(fontWeight: FontWeight.w900),
-                ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "¡Invitación enviada!",
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    created.partnerName,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Contenido
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  // Detalles de la cita
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceVariant.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      children: [
+                        _infoRowWithIcon(
+                          icon: Icons.favorite_rounded,
+                          label: "Actividad",
+                          value: created.activityLabel,
+                          cs: cs,
+                        ),
+                        const SizedBox(height: 12),
+                        _infoRowWithIcon(
+                          icon: Icons.calendar_today_rounded,
+                          label: "Fecha",
+                          value: dateText,
+                          cs: cs,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Información importante
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: cs.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: cs.primary.withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.info_outline_rounded,
+                          size: 20,
+                          color: cs.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "Tu invitación aparecerá en el chat. ${created.partnerName} podrá aceptarla o rechazarla.",
+                            style: textTheme.bodySmall?.copyWith(
+                              color: cs.onSurface.withOpacity(0.8),
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Botones
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: cs.primary,
+                        foregroundColor: cs.onPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        "Volver al chat",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Enlace a History World
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => HistoryLevelsPage(
+                            matchId: int.parse(created.id),
+                            partnerName: created.partnerName,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.emoji_events_rounded, size: 18),
+                    label: const Text("Ver en History World"),
+                    style: TextButton.styleFrom(foregroundColor: cs.primary),
+                  ),
+                ],
               ),
             ),
           ],
@@ -968,28 +1108,46 @@ class _SuccessDialog extends StatelessWidget {
     );
   }
 
-  static Widget _infoRow(String k, String v, ColorScheme cs) {
+  static Widget _infoRowWithIcon({
+    required IconData icon,
+    required String label,
+    required String value,
+    required ColorScheme cs,
+  }) {
     return Row(
       children: [
-        SizedBox(
-          width: 80,
-          child: Text(
-            k,
-            style: TextStyle(
-              color: cs.onSurface.withOpacity(0.65),
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-            ),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: cs.primary.withOpacity(0.15),
+            shape: BoxShape.circle,
           ),
+          child: Icon(icon, size: 18, color: cs.primary),
         ),
+        const SizedBox(width: 12),
         Expanded(
-          child: Text(
-            v,
-            style: TextStyle(
-              color: cs.onSurface,
-              fontWeight: FontWeight.w900,
-              fontSize: 12.5,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: cs.onSurface.withOpacity(0.6),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  color: cs.onSurface,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
       ],

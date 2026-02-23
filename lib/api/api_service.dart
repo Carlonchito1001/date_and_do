@@ -17,13 +17,11 @@ class ApiService {
   }
 
   String _pickAccess(Map<String, dynamic> json) {
-    
     final direct = json['access_token'] ?? json['access'];
     if (direct != null && direct.toString().isNotEmpty) {
       return direct.toString();
     }
 
-    
     final data = json['data'];
     if (data is Map<String, dynamic>) {
       final nested = data['access_token'] ?? data['access'];
@@ -36,7 +34,6 @@ class ApiService {
   }
 
   String? _pickRefresh(Map<String, dynamic> json) {
-   
     final direct = json['refresh_token'] ?? json['refresh'];
     if (direct != null && direct.toString().isNotEmpty) {
       return direct.toString();
@@ -737,25 +734,47 @@ class ApiService {
   // ================== TODOS LOS MATCHES (para nombre/foto) ==================
   Future<List<Map<String, dynamic>>> getAllMatches() async {
     final response = await _requestWithRefresh((token) {
-      return http.get(
-        Uri.parse(ApiEndpoints.allMatches), // /api/dateanddo/matches/
+        return http.get(
+          Uri.parse(ApiEndpoints.allMatches), // /api/dateanddo/matches/
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "X-Service-Code": "dateanddo",
+            "Authorization": "Bearer $token",
+          },
+        );
+      });
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+
+    throw Exception(
+      "Failed to get all matches: ${response.statusCode} - ${response.body}",
+    );
+  }
+
+  // ================== MARCAR MENSAJES COMO LEÍDOS ==================
+  Future<void> markMessagesAsRead(int matchId) async {
+    final response = await _requestWithRefresh((token) {
+      return http.post(
+        Uri.parse(ApiEndpoints.markMessagesAsRead),
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
           "X-Service-Code": "dateanddo",
           "Authorization": "Bearer $token",
         },
+        body: jsonEncode({"ddm_int_id": matchId}),
       );
     });
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body);
-      return data.cast<Map<String, dynamic>>();
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception(
+        "Failed to mark messages as read: ${response.statusCode} - ${response.body}",
+      );
     }
-
-    throw Exception(
-      "Failed to get all matches: ${response.statusCode} - ${response.body}",
-    );
   }
 
   Future<List<Map<String, dynamic>>> getLugares(String category) async {
