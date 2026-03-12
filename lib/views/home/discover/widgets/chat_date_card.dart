@@ -26,7 +26,7 @@ class ChatDateCard extends StatelessWidget {
     Color statusColor;
     IconData statusIcon;
     String statusText;
-    
+
     if (date.isConfirmed) {
       statusColor = Colors.green;
       statusIcon = Icons.check_circle_rounded;
@@ -53,16 +53,10 @@ class ChatDateCard extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            cs.primary.withOpacity(0.1),
-            cs.secondary.withOpacity(0.05),
-          ],
+          colors: [cs.primary.withOpacity(0.1), cs.secondary.withOpacity(0.05)],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: statusColor.withOpacity(0.3),
-          width: 2,
-        ),
+        border: Border.all(color: statusColor.withOpacity(0.3), width: 2),
         boxShadow: [
           BoxShadow(
             color: statusColor.withOpacity(0.1),
@@ -86,11 +80,7 @@ class ChatDateCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(
-                  statusIcon,
-                  color: statusColor,
-                  size: 20,
-                ),
+                Icon(statusIcon, color: statusColor, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -103,7 +93,10 @@ class ChatDateCard extends StatelessWidget {
                 ),
                 if (!isCreator && creatorName != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: cs.surface,
                       borderRadius: BorderRadius.circular(12),
@@ -207,9 +200,7 @@ class ChatDateCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: cs.surface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: cs.outline.withOpacity(0.2),
-                    ),
+                    border: Border.all(color: cs.outline.withOpacity(0.2)),
                   ),
                   child: Row(
                     children: [

@@ -274,10 +274,12 @@ class ApiService {
   // ================== SUGERENCIAS ==================
   Future<List<Map<String, dynamic>>> sugerenciasMatch({
     required String accessToken,
+    required int maxDistanceKm, required ageMin, required ageMax,
   }) async {
     final response = await _requestWithRefresh((token) {
       return http.get(
-        Uri.parse(ApiEndpoints.sugerenciasMatch),
+        Uri.parse(ApiEndpoints.sugerenciasMatch(maxDistanceKm)),
+
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -626,27 +628,27 @@ class ApiService {
     );
   }
 
-  Future<Map<String, dynamic>> getPreferences() async {
-    final response = await _requestWithRefresh((token) {
-      return http.get(
-        Uri.parse(ApiEndpoints.preferencias),
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
-          "Authorization": "Bearer $token",
-        },
-      );
-    });
+  // Future<Map<String, dynamic>> getPreferences() async {
+  //   final response = await _requestWithRefresh((token) {
+  //     return http.get(
+  //       Uri.parse(ApiEndpoints.preferencias),
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //         "Accept": "application/json",
+  //         "X-Service-Code": "dateanddo",
+  //         "Authorization": "Bearer $token",
+  //       },
+  //     );
+  //   });
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    }
+  //   if (response.statusCode == 200) {
+  //     return jsonDecode(response.body) as Map<String, dynamic>;
+  //   }
 
-    throw Exception(
-      "Failed to get preferences: ${response.statusCode} - ${response.body}",
-    );
-  }
+  //   throw Exception(
+  //     "Failed to get preferences: ${response.statusCode} - ${response.body}",
+  //   );
+  // }
 
   Future<Map<String, dynamic>> updateMatchPreferences({
     required int userId,
@@ -734,21 +736,21 @@ class ApiService {
   // ================== TODOS LOS MATCHES (para nombre/foto) ==================
   Future<List<Map<String, dynamic>>> getAllMatches() async {
     final response = await _requestWithRefresh((token) {
-        return http.get(
-          Uri.parse(ApiEndpoints.allMatches), // /api/dateanddo/matches/
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "X-Service-Code": "dateanddo",
-            "Authorization": "Bearer $token",
-          },
-        );
-      });
+      return http.get(
+        Uri.parse(ApiEndpoints.allMatches), // /api/dateanddo/matches/
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
+          "Authorization": "Bearer $token",
+        },
+      );
+    });
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.cast<Map<String, dynamic>>();
-      }
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    }
 
     throw Exception(
       "Failed to get all matches: ${response.statusCode} - ${response.body}",
@@ -811,5 +813,49 @@ class ApiService {
     throw Exception(
       "Failed to get lugares: ${response.statusCode} - ${response.body}",
     );
+  }
+
+  Future<Map<String, dynamic>> getPreferences({
+    required String accessToken,
+  }) async {
+    final response = await http.get(
+      Uri.parse(ApiEndpoints.preferences),
+      headers: {
+        "Authorization": "Bearer $accessToken",
+        "Content-Type": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+
+    throw Exception("Error obteniendo preferencias");
+  }
+
+  Future<void> updatePreferences({
+    required String accessToken,
+    int? radiusKm,
+    int? ageMin,
+    int? ageMax,
+  }) async {
+    final body = <String, dynamic>{};
+
+    if (radiusKm != null) body["ddp_int_radius_km"] = radiusKm;
+    if (ageMin != null) body["ddp_int_age_min"] = ageMin;
+    if (ageMax != null) body["ddp_int_age_max"] = ageMax;
+
+    final response = await http.patch(
+      Uri.parse(ApiEndpoints.preferences),
+      headers: {
+        "Authorization": "Bearer $accessToken",
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception("Error actualizando preferencias");
+    }
   }
 }

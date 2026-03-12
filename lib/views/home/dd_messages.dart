@@ -1,12 +1,16 @@
-import 'package:date_and_doing/views/home/dd_home.dart';
-import 'package:date_and_doing/views/home/discover/dd_discover.dart';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
+import 'package:date_and_doing/services/multi_chat_websocket_service.dart';
+
+import 'package:date_and_doing/views/home/dd_home.dart';
 import 'dd_chat_page.dart';
 
 class DdMessages extends StatefulWidget {
-  const DdMessages({super.key});
+  final VoidCallback? onUnreadCountChanged;
+
+  const DdMessages({super.key, this.onUnreadCountChanged});
 
   @override
   State<DdMessages> createState() => _DdMessagesState();
@@ -15,16 +19,100 @@ class DdMessages extends StatefulWidget {
 class _DdMessagesState extends State<DdMessages> {
   final _api = ApiService();
   final _prefs = SharedPreferencesService();
+  final _multiWs = MultiChatWebSocketService();
 
   bool _loading = true;
   String? _error;
 
+  int? _myId;
+
+  // conversations:
+  // {
+  //  matchId, otherUserId, nombre, foto,
+  //  ultimoMensaje, hora, noLeidos, timestamp
+  // }  
   List<Map<String, dynamic>> _conversations = [];
+
+  // Para actualizar rápido por matchId
+  final Map<int, int> _indexByMatchId = {};
 
   @override
   void initState() {
     super.initState();
-    _loadConversations();
+    _bootstrap();
+
+    _multiWs.events.listen(_onInboxWsEvent);
+  }
+
+  Future<void> _bootstrap() async {
+    _myId = await _prefs.getUserIdOrThrow();
+    await _loadConversations();
+    await _connectSocketsForVisibleConversations();
+  }
+
+  Future<void> _connectSocketsForVisibleConversations() async {
+    // Conecta a todos los matchId que están en la lista.
+    // Si quieres optimizar: conecta solo a los primeros 30.
+    final ids = _conversations.map((c) => c["matchId"] as int).toList();
+    await _multiWs.connectMany(ids);
+  }
+
+  void _onInboxWsEvent(Map<String, dynamic> event) {
+    if (!mounted) return;
+
+    final type = (event["type"] ?? "").toString();
+
+    // Tu backend termina enviando type = "chat.message" (porque **event pisa el type="message")
+    // y también puede mandar "connected" o "chat.read".
+    if (type != "chat.message") return;
+
+    final matchId = _asInt(
+      event["ddm_int_id"] ?? event["__match_id"] ?? event["match_id"],
+    );
+    if (matchId == null) return;
+
+    final body = (event["body"] ?? "").toString();
+    if (body.isEmpty) return;
+
+    DateTime createdAt;
+    try {
+      createdAt = DateTime.parse((event["created_at"] ?? "").toString());
+    } catch (_) {
+      createdAt = DateTime.now();
+    }
+
+    final receiverId = _asInt(
+      event["receiver_id"] ?? event["use_int_receiver"],
+    );
+    final isForMe =
+        (_myId != null && receiverId != null && receiverId == _myId);
+
+    // Si la conversación no existe en lista (raro), recargamos todo.
+    if (!_indexByMatchId.containsKey(matchId)) {
+      _loadConversations();
+      return;
+    }
+
+    setState(() {
+      final idx = _indexByMatchId[matchId]!;
+      final old = _conversations[idx];
+
+      final newUnread = (old["noLeidos"] as int? ?? 0) + (isForMe ? 1 : 0);
+
+      final updated = {
+        ...old,
+        "ultimoMensaje": body,
+        "hora": TimeOfDay.fromDateTime(createdAt).format(context),
+        "timestamp": createdAt.millisecondsSinceEpoch,
+        "noLeidos": newUnread,
+      };
+
+      // mover al top
+      _conversations.removeAt(idx);
+      _conversations.insert(0, updated);
+
+      _rebuildIndex();
+    });
   }
 
   Future<void> _loadConversations() async {
@@ -34,13 +122,15 @@ class _DdMessagesState extends State<DdMessages> {
     });
 
     try {
-      final myId = await _prefs.getUserIdOrThrow();
+      final myId = _myId ?? await _prefs.getUserIdOrThrow();
 
-      // 1) Traer mensajes y matches
+      // ⚠️ Esto es pesado: traer TODOS los mensajes.
+      // Ideal: tener endpoint “inbox” en backend (último por match + unread).
+      // Pero por ahora lo dejamos como tu lógica.
       final allMessages = await _api.getAllMessages();
       final allMatches = await _api.getAllMatches();
 
-      // 2) Mapear matchId -> other_user
+      // matchId -> other_user info
       final Map<int, Map<String, dynamic>> matchInfo = {};
       for (final m in allMatches) {
         final matchId = _asInt(m["ddm_int_id"]);
@@ -57,7 +147,7 @@ class _DdMessagesState extends State<DdMessages> {
         }
       }
 
-      // 3) Agrupar mensajes por match
+      // agrupar mensajes por match
       final Map<int, List<Map<String, dynamic>>> grouped = {};
       for (final msg in allMessages) {
         if (msg["ddmsg_txt_status"] != "ACTIVO") continue;
@@ -69,7 +159,6 @@ class _DdMessagesState extends State<DdMessages> {
         grouped[matchId]!.add(msg);
       }
 
-      // 4) Construir conversaciones
       final List<Map<String, dynamic>> conversations = [];
 
       grouped.forEach((matchId, msgs) {
@@ -115,9 +204,11 @@ class _DdMessagesState extends State<DdMessages> {
       );
 
       if (!mounted) return;
+
       setState(() {
         _conversations = conversations;
         _loading = false;
+        _rebuildIndex();
       });
     } catch (e) {
       if (!mounted) return;
@@ -128,14 +219,26 @@ class _DdMessagesState extends State<DdMessages> {
     }
   }
 
+  void _rebuildIndex() {
+    _indexByMatchId.clear();
+    for (int i = 0; i < _conversations.length; i++) {
+      _indexByMatchId[_conversations[i]["matchId"] as int] = i;
+    }
+  }
+
   int? _asInt(dynamic v) {
     if (v == null) return null;
     if (v is int) return v;
     return int.tryParse(v.toString());
   }
 
-  void _openChat(Map<String, dynamic> c) {
-    Navigator.push(
+  void _openChat(Map<String, dynamic> c) async {
+    // Cuando entras al chat, normalmente quieres resetear el badge local.
+    setState(() {
+      c["noLeidos"] = 0;
+    });
+
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => DdChatPage(
@@ -145,26 +248,33 @@ class _DdMessagesState extends State<DdMessages> {
           foto: c["foto"],
         ),
       ),
-    ).then((_) => _loadConversations());
+    );
+
+    // Al volver, refresca por si cambió algo
+    await _loadConversations();
+    await _connectSocketsForVisibleConversations();
+  }
+
+  @override
+  void dispose() {
+    _multiWs.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const _MessagesSkeleton();
-    }
-
-    if (_error != null) {
+    if (_loading) return const _MessagesSkeleton();
+    if (_error != null)
       return _MessagesErrorState(message: _error!, onRetry: _loadConversations);
-    }
-
-    if (_conversations.isEmpty) {
+    if (_conversations.isEmpty)
       return _EmptyMessagesState(onRefresh: _loadConversations);
-    }
 
     return Scaffold(
       body: RefreshIndicator(
-        onRefresh: _loadConversations,
+        onRefresh: () async {
+          await _loadConversations();
+          await _connectSocketsForVisibleConversations();
+        },
         child: ListView.separated(
           itemCount: _conversations.length,
           separatorBuilder: (_, __) => const Divider(indent: 72),
@@ -186,7 +296,7 @@ class _DdMessagesState extends State<DdMessages> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(chat["hora"], style: const TextStyle(fontSize: 11)),
-                  if (chat["noLeidos"] > 0)
+                  if ((chat["noLeidos"] as int) > 0)
                     Container(
                       margin: const EdgeInsets.only(top: 4),
                       padding: const EdgeInsets.symmetric(
@@ -275,26 +385,10 @@ class _EmptyMessagesState extends StatelessWidget {
                         onPressed: () => onRefresh(),
                         icon: const Icon(Icons.refresh_rounded),
                         label: const Text('Actualizar'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: cs.primary,
-                          foregroundColor: cs.onPrimary,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 32,
-                            vertical: 16,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
                       ),
                       const SizedBox(height: 12),
                       TextButton.icon(
                         onPressed: () {
-                          // Navegar a discover para hacer matches
-                          // Navigator.of(
-                          //   context,
-                          // ).popUntil((route) => route.isFirst);
-
                           Navigator.push(
                             context,
                             MaterialPageRoute(builder: (_) => const DdHome()),
@@ -339,7 +433,6 @@ class _MessagesSkeletonState extends State<_MessagesSkeleton>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     )..repeat();
-
     _animation = Tween<double>(
       begin: -1.0,
       end: 2.0,
@@ -459,17 +552,6 @@ class _MessagesErrorState extends StatelessWidget {
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('Reintentar'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: cs.primary,
-                  foregroundColor: cs.onPrimary,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 16,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
               ),
             ],
           ),
@@ -520,7 +602,6 @@ class _ShimmerContainer extends StatelessWidget {
 
 class _SlidingGradientTransform extends GradientTransform {
   final double slidePercent;
-
   const _SlidingGradientTransform({required this.slidePercent});
 
   @override

@@ -263,7 +263,7 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
                     label: "Perfil",
                     isSelected: _currentIndex == 3,
                     onTap: () => _onItemTapped(3),
-                    colorScheme: cs,
+                    colorScheme: cs,  
                   ),
                 ],
               ),

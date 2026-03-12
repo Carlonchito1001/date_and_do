@@ -1,41 +1,21 @@
-import 'dart:convert';
+// dd_chat_page.dart
+import 'dart:async';
 import 'dart:ui';
-import 'package:date_and_doing/services/shared_preferences_service.dart';
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-
 import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/models/dd_date.dart';
-
-import 'package:date_and_doing/views/home/discover/widgets/chat_date_card.dart';
+import 'package:date_and_doing/models/analysis_result.dart';
+import 'package:date_and_doing/services/chat_ai_service.dart';
+import 'package:date_and_doing/services/chat_websocket_service.dart';
+import 'package:date_and_doing/services/shared_preferences_service.dart';
 import 'package:date_and_doing/views/history/history_levels.dart';
+import 'package:date_and_doing/views/home/discover/widgets/chat_date_card.dart';
 import 'package:date_and_doing/views/home/discover/widgets/dd_create_activity_page.dart';
-import 'package:date_and_doing/widgets/modal_day_chat.dart';
 import 'package:date_and_doing/widgets/modal_alini_unlocked.dart';
+import 'package:date_and_doing/widgets/modal_day_chat.dart';
+import 'package:flutter/material.dart';
 
-import 'dd_mock_data.dart';
-
-class AnalysisResult {
-  final String partnerName;
-  final String overallTitle;
-  final String toneLabel;
-  final String overallSummary;
-  final Map<String, double> scores;
-  final List<String> positives;
-  final String note;
-
-  AnalysisResult({
-    required this.partnerName,
-    required this.overallTitle,
-    required this.toneLabel,
-    required this.overallSummary,
-    required this.scores,
-    required this.positives,
-    required this.note,
-  });
-}
-
-int ChatDay = 4;
+int ChatDay =
+    1; // variable global para controlar el día del chat (puede ser parte de un provider o similar en una app real)
 
 enum _ChatMenuAction { refreshDates, historyWorld, ai }
 
@@ -59,16 +39,20 @@ class DdChatPage extends StatefulWidget {
 
 class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
   int? _currentUserId;
+
   bool _loadingMessages = true;
   String? _messagesError;
+
   final TextEditingController _messageCtrl = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  final _api = ApiService();
+  final ApiService _api = ApiService();
+  final ChatWebSocketService _wsService = ChatWebSocketService();
 
-  final String currentUser = "Juan";
+  StreamSubscription? _wsSubscription;
+  StreamSubscription? _wsConnectionSubscription;
+
   final List<Map<String, dynamic>> _messages = [];
-
   bool _sendingMsg = false;
 
   bool _loadingDates = true;
@@ -77,41 +61,159 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
   bool _analyzing = false;
   bool _shownAliniUnlockedThisSession = false;
 
-  static const String _iaUrl =
-      'https://n8n.fintbot.pe/webhook/be664844-a373-4376-888a-170049d6f2d5';
+  // ✅ Usa tu ChatAiService (ya lo tienes)
+  late final ChatAiService _ai = ChatAiService(
+    iaUrl:
+        'https://n8n.fintbot.pe/webhook/be664844-a373-4376-888a-170049d6f2d5',
+  );
 
-  static const String _defaultIaNote =
-      "Este análisis es generado por IA y está basado en patrones de comunicación. "
-      "Usa tu propio criterio para tomar decisiones sobre tus conexiones.";
+  final String currentUser = "Juan";
 
   @override
   void initState() {
     super.initState();
-    _loadDates();
-    _loadMessages();
+    _bootstrap();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndShowAliniUnlocked();
     });
   }
 
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
+  Future<void> _bootstrap() async {
+    await _loadUserId();
+    await _loadDates();
+    await _loadMessages();
+    await _initWebSocket();
+    if (!mounted) return;
+    // _scrollToBottom(animate: false);
+    // Future.delayed(const Duration(milliseconds: 120), () {
+    //   if (mounted) _scrollToBottom(animate: false);
+    // });
+  }
+
+  Future<void> _loadUserId() async {
+    _currentUserId = await SharedPreferencesService().getUserIdOrThrow();
+  }
+
+  Future<void> _initWebSocket() async {
+    try {
+      await _wsService.connect(widget.matchId);
+
+      _wsSubscription = _wsService.messageStream.listen(_onWebSocketMessage);
+      _wsConnectionSubscription = _wsService.connectionStream.listen(
+        _onWebSocketConnectionChanged,
+      );
+    } catch (e) {
+      debugPrint('WebSocket connection error: $e');
+    }
+  }
+
+  void _onWebSocketConnectionChanged(bool isConnected) {
+    if (!mounted) return;
+    _showToast(
+      isConnected ? 'Conectado' : 'Desconectado. Reconectando...',
+      isConnected ? Colors.green : Colors.orange,
+    );
+  }
+
+  void _scrollToBottom({bool animate = true}) {
+    if (!_scrollController.hasClients) return;
+
+    if (animate) {
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
+        0,
+        duration: const Duration(milliseconds: 280),
         curve: Curves.easeOut,
       );
+    } else {
+      _scrollController.jumpTo(0);
+    }
+  }
+
+  // ✅ WS: backend manda chat.message
+  void _onWebSocketMessage(Map<String, dynamic> message) async {
+    if (!mounted) return;
+
+    _currentUserId ??= await SharedPreferencesService().getUserIdOrThrow();
+
+    final type = (message['type'] ?? '').toString();
+    if (type != 'chat.message') return;
+
+    // ✅ Filtra por match
+    final wsMatchId = message['ddm_int_id'];
+    if (wsMatchId != null &&
+        wsMatchId.toString() != widget.matchId.toString()) {
+      return;
+    }
+
+    final body = (message['body'] ?? '').toString();
+    if (body.isEmpty) return;
+
+    final senderId = message['sender_id'];
+    final receiverId = message['receiver_id'];
+    final serverMsgId = message['ddmsg_int_id'];
+
+    if (senderId == null) return;
+
+    DateTime createdAt;
+    try {
+      createdAt = DateTime.parse(message['created_at']?.toString() ?? '');
+    } catch (_) {
+      createdAt = DateTime.now();
+    }
+
+    final isMine = senderId.toString() == _currentUserId.toString();
+
+    final newMessage = {
+      'id': serverMsgId ?? DateTime.now().millisecondsSinceEpoch,
+      'sender_id': senderId,
+      'autor': isMine ? 'Yo' : widget.nombre,
+      'text': body,
+      'hora': TimeOfDay.fromDateTime(createdAt).format(context),
+      'fecha': createdAt.toIso8601String().substring(0, 10),
+      'is_read': (message['read'] == true),
+      'is_temp': false,
+    };
+
+    setState(() {
+      // evita duplicados por id
+      if (serverMsgId != null &&
+          _messages.any((m) => m['id'].toString() == serverMsgId.toString())) {
+        return;
+      }
+
+      if (isMine) {
+        // ✅ reemplaza el último temp con ese texto
+        final idx = _messages.lastIndexWhere(
+          (m) => m['is_temp'] == true && (m['text']?.toString() == body),
+        );
+        if (idx != -1) {
+          _messages[idx] = newMessage;
+        } else {
+          _messages.add(newMessage);
+        }
+      } else {
+        _messages.add(newMessage);
+      }
+    });
+
+    _scrollToBottom(animate: true);
+
+    // marcar como leído si yo soy receptor
+    if (_currentUserId != null &&
+        receiverId != null &&
+        receiverId.toString() == _currentUserId.toString()) {
+      try {
+        await _api.markMessagesAsRead(widget.matchId);
+      } catch (_) {}
     }
   }
 
   Future<void> _loadDates() async {
     setState(() => _loadingDates = true);
-
     try {
       final list = await _api.getDatesForMatch(widget.matchId);
       list.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
-
       if (!mounted) return;
       setState(() {
         _dates = list;
@@ -130,7 +232,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
       await _loadDates();
       _showToast("✅ Cita confirmada", Colors.green);
     } catch (e) {
-      _showToast("❌ Error confirmando: \$e", Colors.red);
+      _showToast("❌ Error confirmando: $e", Colors.red);
     }
   }
 
@@ -140,11 +242,12 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
       await _loadDates();
       _showToast("✅ Cita rechazada", Colors.orange);
     } catch (e) {
-      _showToast("❌ Error rechazando: \$e", Colors.red);
+      _showToast("❌ Error rechazando: $e", Colors.red);
     }
   }
 
   void _showToast(String msg, Color color) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
@@ -156,30 +259,160 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     );
   }
 
+  // ✅ Enviar tipo WhatsApp (temp inmediato)
   Future<void> _sendMessage() async {
     final text = _messageCtrl.text.trim();
     if (text.isEmpty || _sendingMsg) return;
 
-    setState(() => _sendingMsg = true);
+    _currentUserId ??= await SharedPreferencesService().getUserIdOrThrow();
+
+    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    final tempMsg = {
+      'id': tempId,
+      'sender_id': _currentUserId,
+      'autor': 'Yo',
+      'text': text,
+      'hora': TimeOfDay.now().format(context),
+      'fecha': DateTime.now().toIso8601String().substring(0, 10),
+      'is_read': false,
+      'is_temp': true,
+    };
+
+    setState(() {
+      _sendingMsg = true;
+      _messages.add(tempMsg);
+    });
+
+    _messageCtrl.clear();
+    _scrollToBottom(animate: true);
 
     try {
-      await _api.sendMessage(
-        matchId: widget.matchId,
-        receiverId: widget.otherUserId,
-        body: text,
-      );
-
-      _messageCtrl.clear();
-      await _loadMessages();
-      _scrollToBottom();
+      if (_wsService.isConnected) {
+        await _wsService.sendMessage(
+          matchId: widget.matchId,
+          receiverId: widget.otherUserId,
+          body: text,
+        );
+      } else {
+        // fallback HTTP
+        await _api.sendMessage(
+          matchId: widget.matchId,
+          receiverId: widget.otherUserId,
+          body: text,
+        );
+        await _loadMessages();
+      }
 
       if (!mounted) return;
       setState(() => _sendingMsg = false);
+      _scrollToBottom(animate: true);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _sendingMsg = false);
-      _showToast("❌ Error enviando: \$e", Colors.red);
+      setState(() {
+        _sendingMsg = false;
+        _messages.removeWhere((m) => m['id'] == tempId);
+      });
+      _showToast('Error enviando: $e', Colors.red);
     }
+  }
+
+  // ✅ Cargar mensajes SOLO del match (y conservar temps)
+  Future<void> _loadMessages() async {
+    setState(() {
+      _loadingMessages = true;
+      _messagesError = null;
+    });
+
+    try {
+      _currentUserId ??= await SharedPreferencesService().getUserIdOrThrow();
+
+      final list = await _api.getMessagesByMatch(widget.matchId);
+
+      final filtered = list
+          .where((m) => (m["ddmsg_txt_status"] ?? "ACTIVO") == "ACTIVO")
+          .toList();
+
+      filtered.sort((a, b) {
+        final da = DateTime.parse(
+          (a["ddmsg_timestamp_datecreate"] ??
+                  a["created_at"] ??
+                  DateTime.now().toIso8601String())
+              .toString(),
+        );
+        final db = DateTime.parse(
+          (b["ddmsg_timestamp_datecreate"] ??
+                  b["created_at"] ??
+                  DateTime.now().toIso8601String())
+              .toString(),
+        );
+        return da.compareTo(db);
+      });
+
+      if (!mounted) return;
+
+      final tempMessages = _messages
+          .where((m) => m['is_temp'] == true)
+          .toList();
+
+      setState(() {
+        _messages
+          ..clear()
+          ..addAll(
+            filtered.map((m) {
+              final createdAt = DateTime.parse(
+                (m["ddmsg_timestamp_datecreate"] ??
+                        m["created_at"] ??
+                        DateTime.now().toIso8601String())
+                    .toString(),
+              );
+
+              final senderId = m["use_int_sender"] ?? m["sender_id"];
+              final isMine = senderId.toString() == _currentUserId.toString();
+
+              return {
+                "id": m["ddmsg_int_id"] ?? m["id"],
+                "sender_id": senderId,
+                "autor": isMine ? "Yo" : widget.nombre,
+                "text": m["ddmsg_txt_body"] ?? m["body"] ?? "",
+                "hora": TimeOfDay.fromDateTime(createdAt).format(context),
+                "fecha": createdAt.toIso8601String().substring(0, 10),
+                "is_read": (m["ddmsg_bool_read"] == true || m["read"] == true),
+                "is_temp": false,
+              };
+            }),
+          );
+
+        if (tempMessages.isNotEmpty) _messages.addAll(tempMessages);
+        _loadingMessages = false;
+      });
+
+      _scrollToBottom(animate: false);
+      Future.delayed(const Duration(milliseconds: 120), () {
+        if (mounted) _scrollToBottom(animate: false);
+      });
+      await _markUnreadMessagesAsRead(filtered);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _messagesError = e.toString();
+        _loadingMessages = false;
+      });
+    }
+  }
+
+  Future<void> _markUnreadMessagesAsRead(
+    List<Map<String, dynamic>> messages,
+  ) async {
+    final hasUnread = messages.any((m) {
+      final isRead = (m["ddmsg_bool_read"] == true || m["read"] == true);
+      final receiverId = m["use_int_receiver"] ?? m["receiver_id"];
+      return !isRead && receiverId.toString() == _currentUserId.toString();
+    });
+
+    if (!hasUnread) return;
+    try {
+      await _api.markMessagesAsRead(widget.matchId);
+    } catch (_) {}
   }
 
   void _checkAndShowAliniUnlocked() async {
@@ -194,9 +427,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
       builder: (_) => ModalAliniUnlocked(partnerName: widget.nombre),
     );
 
-    if (wantsTry == true) {
-      _iniciarAliniVideoCall();
-    }
+    if (wantsTry == true) _iniciarAliniVideoCall();
   }
 
   void _iniciarAliniVideoCall() {
@@ -221,98 +452,122 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
 
   bool _esMio(Map<String, dynamic> msg) {
     if (_currentUserId == null) return false;
-    return msg["sender_id"] == _currentUserId;
-  }
-
-  Future<void> _loadMessages() async {
-    setState(() {
-      _loadingMessages = true;
-      _messagesError = null;
-    });
-
-    try {
-      _currentUserId ??= await SharedPreferencesService().getUserIdOrThrow();
-
-      final rawMessages = await _api.getMessagesByMatch(widget.matchId);
-
-      final filtered = rawMessages
-          .where((m) => m["ddmsg_txt_status"] == "ACTIVO")
-          .toList();
-
-      filtered.sort((a, b) {
-        final da = DateTime.parse(a["ddmsg_timestamp_datecreate"].toString());
-        final db = DateTime.parse(b["ddmsg_timestamp_datecreate"].toString());
-        return da.compareTo(db);
-      });
-
-      if (!mounted) return;
-
-      setState(() {
-        _messages
-          ..clear()
-          ..addAll(
-            filtered.map((m) {
-              final createdAt = DateTime.parse(
-                m["ddmsg_timestamp_datecreate"].toString(),
-              );
-
-              return {
-                "id": m["ddmsg_int_id"],
-                "sender_id": m["use_int_sender"],
-                "autor": (m["use_int_sender"] == _currentUserId)
-                    ? "Yo"
-                    : widget.nombre,
-                "text": m["ddmsg_txt_body"] ?? "",
-                "hora": TimeOfDay.fromDateTime(createdAt).format(context),
-                "fecha": createdAt.toIso8601String().substring(0, 10),
-                "is_read": m["ddmsg_bool_read"] == true,
-              };
-            }),
-          );
-        _loadingMessages = false;
-      });
-
-      // Scroll al final después de cargar
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
-
-      // Marcar mensajes no leídos como leídos
-      await _markUnreadMessagesAsRead(filtered);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _messagesError = e.toString();
-        _loadingMessages = false;
-      });
-    }
-  }
-
-  Future<void> _markUnreadMessagesAsRead(List<Map<String, dynamic>> messages) async {
-    // Verificar si hay mensajes no leídos donde el usuario actual es el receptor
-    final hasUnread = messages.any((m) {
-      final isRead = m["ddmsg_bool_read"] == true;
-      final receiverId = m["use_int_receiver"];
-      return !isRead && receiverId == _currentUserId;
-    });
-
-    // Si hay mensajes no leídos, marcar todos los del match como leídos
-    if (hasUnread) {
-      try {
-        await _api.markMessagesAsRead(widget.matchId);
-      } catch (e) {
-        // Silenciar errores - no es crítico
-        debugPrint("Error marking messages as read for match ${widget.matchId}: $e");
-      }
-    }
+    final senderId = msg['sender_id'];
+    if (senderId == null) return false;
+    return senderId.toString() == _currentUserId.toString();
   }
 
   @override
   void dispose() {
+    _wsSubscription?.cancel();
+    _wsConnectionSubscription?.cancel();
+    _wsService.disconnect();
     _messageCtrl.dispose();
     _scrollController.dispose();
     super.dispose();
   }
+
+  // ===================== IA (usando ChatAiService) =====================
+
+  Future<void> _analyzeChatForToday() async {
+    if (_messages.isEmpty) return;
+
+    setState(() => _analyzing = true);
+    try {
+      final day = DateTime.now();
+      final dayStr = day.toIso8601String().substring(0, 10);
+
+      final filtered = _messages.where((m) => m["fecha"] == dayStr).toList();
+      final msgs = filtered.isNotEmpty ? filtered : _messages;
+
+      final result = await _ai.analyze(
+        mode: "today",
+        day: day,
+        partnerName: widget.nombre,
+        currentUser: currentUser,
+        messagesToSend: msgs,
+      );
+
+      if (!mounted) return;
+      _showAnalysisModal(result);
+    } catch (e) {
+      _showToast("Error IA: $e", Colors.red);
+    } finally {
+      if (mounted) setState(() => _analyzing = false);
+    }
+  }
+
+  void _showAnalysisModal(AnalysisResult result) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.85,
+        minChildSize: 0.6,
+        maxChildSize: 0.95,
+        builder: (ctx, scrollController) => Column(
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                controller: scrollController,
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Text(
+                    "Análisis IA - ${result.partnerName}",
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade500,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          result.toneLabel,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          result.overallSummary,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===================== UI =====================
 
   @override
   Widget build(BuildContext context) {
@@ -500,9 +755,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
   }
 
   Widget _buildBody(ColorScheme cs) {
-    if (_loadingMessages) {
-      return const _ChatSkeleton();
-    }
+    if (_loadingMessages) return const _ChatSkeleton();
 
     if (_messagesError != null) {
       return _ChatErrorState(message: _messagesError!, onRetry: _loadMessages);
@@ -527,38 +780,46 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      reverse: true,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
       itemCount: _calculateItemCount(),
-      itemBuilder: (context, index) {
-        return _buildListItem(index, cs);
-      },
+      itemBuilder: (context, index) => _buildListItem(index, cs),
     );
   }
 
+  // ✅ FIX CRÍTICO: ahora sí contamos el header de mensajes
   int _calculateItemCount() {
     int count = 0;
-    if (_dates.isNotEmpty) count += _dates.length + 1; // +1 for header
-    if (_messages.isNotEmpty) count += _messages.length;
+
+    if (_dates.isNotEmpty) {
+      count += 1; // header "Próximas citas"
+      count += _dates.length;
+    }
+
+    if (_messages.isNotEmpty) {
+      count += 1; // header "Mensajes"  ✅ (ESTO FALTABA)
+      count += _messages.length;
+    }
+
     return count;
   }
 
   Widget _buildListItem(int index, ColorScheme cs) {
-    int currentIndex = 0;
+    final total = _calculateItemCount();
+    final realIndex = total - 1 - index;
+    int i = realIndex;
 
-    // Fechas primero
+    // ---- DATES ----
     if (_dates.isNotEmpty) {
-      if (index == 0) {
+      if (i == 0) {
         return _buildSectionHeader("Próximas citas", Icons.event_rounded, cs);
       }
-      currentIndex++;
+      i -= 1;
 
-      if (index <= _dates.length) {
-        final d = _dates[index - 1];
-        // Determinar si el usuario actual es el creador de la cita
-        // Tu backend debe incluir el creator_id para esto
-        // Por ahora usamos una lógica simple
+      if (i < _dates.length) {
+        final d = _dates[i];
         final isCreator = d.statusUpper == "ACTIVO" && _currentUserId != null;
-        
+
         return ChatDateCard(
           date: d,
           onConfirm: () => _confirmDate(d),
@@ -567,30 +828,32 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
           creatorName: isCreator ? "Tú" : widget.nombre,
         );
       }
-      currentIndex += _dates.length;
+      i -= _dates.length;
     }
 
-    // Mensajes
+    // ---- MESSAGES ----
     if (_messages.isNotEmpty) {
-      final msgIndex = index - currentIndex;
-      if (msgIndex == 0) {
+      if (i == 0) {
         return Padding(
           padding: const EdgeInsets.only(top: 16, bottom: 8),
           child: _buildSectionHeader("Mensajes", Icons.chat_rounded, cs),
         );
       }
+      i -= 1;
 
-      final msg = _messages[msgIndex - 1];
-      final esMio = _esMio(msg);
+      if (i < _messages.length) {
+        final msg = _messages[i];
+        final esMio = _esMio(msg);
 
-      return _MessageBubble(
-        message: msg["text"] as String,
-        time: msg["hora"] as String,
-        isMine: esMio,
-        isRead: msg["is_read"] == true,
-        senderName: esMio ? null : msg["autor"] as String,
-        avatarUrl: esMio ? null : widget.foto,
-      );
+        return _MessageBubble(
+          message: msg["text"] as String,
+          time: msg["hora"] as String,
+          isMine: esMio,
+          isRead: msg["is_read"] == true,
+          senderName: esMio ? null : msg["autor"] as String,
+          avatarUrl: esMio ? null : widget.foto,
+        );
+      }
     }
 
     return const SizedBox.shrink();
@@ -621,10 +884,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Container(
-              height: 1,
-              color: cs.primary.withOpacity(0.2),
-            ),
+            child: Container(height: 1, color: cs.primary.withOpacity(0.2)),
           ),
         ],
       ),
@@ -679,6 +939,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
                           ),
                           onSubmitted: (_) => _sendMessage(),
                           textInputAction: TextInputAction.send,
+                          onChanged: (_) => setState(() {}),
                         ),
                       ),
                       if (_messageCtrl.text.isNotEmpty)
@@ -742,286 +1003,6 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
           padding: const EdgeInsets.all(10),
           margin: const EdgeInsets.only(right: 8),
           child: Icon(icon, size: 24),
-        ),
-      ),
-    );
-  }
-
-  // Métodos de análisis IA (sin cambios significativos)
-  String _buildConversationText(List<Map<String, dynamic>> msgs) {
-    final buffer = StringBuffer();
-    for (final m in msgs) {
-      final String hora = (m["hora"] ?? "") as String;
-      final String autor = (m["autor"] ?? "") as String;
-      final String text = (m["text"] ?? "") as String;
-      buffer.writeln("[\$hora] \$autor:");
-      buffer.writeln(text);
-      buffer.writeln();
-    }
-    return buffer.toString();
-  }
-
-  double _normalizePercent(dynamic raw) {
-    double v;
-    if (raw is num) {
-      v = raw.toDouble();
-    } else {
-      v = double.tryParse(raw.toString()) ?? 0.0;
-    }
-    if (v <= 1.0) v *= 100.0;
-    if (v < 0) v = 0;
-    if (v > 100) v = 100;
-    return v;
-  }
-
-  Future<void> _analyzeChatForToday() async {
-    if (_messages.isEmpty) return;
-
-    setState(() => _analyzing = true);
-
-    final day = DateTime.now();
-    final dayStr = day.toIso8601String().substring(0, 10);
-
-    final filtered = _messages.where((m) => m["fecha"] == dayStr).toList();
-    final msgs = filtered.isNotEmpty ? filtered : _messages;
-
-    final payload = {
-      "mode": "today",
-      "date": dayStr,
-      "partner_name": widget.nombre,
-      "current_user": currentUser,
-      "conversation_text": _buildConversationText(msgs),
-      "messages_raw": msgs
-          .map(
-            (m) => {
-              "author": m["autor"],
-              "text": m["text"],
-              "time": m["hora"],
-              "date": m["fecha"],
-            },
-          )
-          .toList(),
-    };
-
-    try {
-      final resp = await http.post(
-        Uri.parse(_iaUrl),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(payload),
-      );
-
-      if (!mounted) return;
-
-      if (resp.statusCode >= 200 && resp.statusCode < 300) {
-        final result =
-            _parseAnalysisResult(resp.body, widget.nombre) ??
-            _fallbackAnalysis(resp.body, widget.nombre);
-        _showAnalysisModal(result);
-      } else {
-        _showToast("IA error \${resp.statusCode}", Colors.red);
-      }
-    } catch (e) {
-      _showToast("Error IA: \$e", Colors.red);
-    } finally {
-      if (mounted) setState(() => _analyzing = false);
-    }
-  }
-
-  AnalysisResult? _parseAnalysisResult(String body, String partnerName) {
-    try {
-      dynamic decoded = jsonDecode(body);
-      if (decoded is String) decoded = jsonDecode(decoded);
-      if (decoded is! Map<String, dynamic>) return null;
-      final map = decoded;
-
-      if (map.length == 1 && map.containsKey("output")) {
-        final String output = map["output"]?.toString() ?? "";
-        if (output.isEmpty) return null;
-        return _parseFromSingleOutput(output, partnerName);
-      }
-
-      final overallTitle = (map["overall_title"] ?? "Evaluación General")
-          .toString();
-      final toneLabel = (map["overall_label"] ?? map["tone"] ?? "Análisis")
-          .toString();
-      final overallSummary = (map["overall_summary"] ?? map["summary"] ?? "")
-          .toString();
-
-      final scoresRaw = map["scores"] ?? map["indicadores"];
-      final Map<String, double> scores = {};
-      if (scoresRaw is Map) {
-        scoresRaw.forEach((key, value) {
-          if (value != null) scores[key.toString()] = _normalizePercent(value);
-        });
-      }
-
-      final posRaw =
-          map["positives"] ?? map["aspects_positive"] ?? map["positivos"];
-      final List<String> positives = [];
-      if (posRaw is List) positives.addAll(posRaw.map((e) => e.toString()));
-
-      final note = (map["note"] ?? _defaultIaNote).toString();
-
-      return AnalysisResult(
-        partnerName: partnerName,
-        overallTitle: overallTitle,
-        toneLabel: toneLabel,
-        overallSummary: overallSummary,
-        scores: scores,
-        positives: positives,
-        note: note,
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
-  AnalysisResult _parseFromSingleOutput(String output, String partnerName) {
-    final lines = output
-        .split('\n')
-        .map((l) => l.trim())
-        .where((l) => l.isNotEmpty)
-        .toList();
-    final Map<String, double> scores = {};
-    final List<String> positives = [];
-    double? probAvance;
-    String overallSummary = "";
-
-    final RegExp percentRegex = RegExp(r'(\d+)\s*%');
-
-    for (int i = 0; i < lines.length; i++) {
-      String line = lines[i];
-      line = line.replaceFirst(RegExp(r'^\d+\.\s*'), '');
-
-      String label = "";
-      String rest = line;
-      final parts = line.split(':');
-      if (parts.length >= 2) {
-        label = parts[0].trim();
-        rest = parts.sublist(1).join(':').trim();
-      }
-
-      double? pct;
-      final match = percentRegex.firstMatch(rest);
-      if (match != null) {
-        pct = double.tryParse(match.group(1)!);
-      }
-      if (pct != null) {
-        final key = label.isEmpty ? 'Indicador \${i + 1}' : label;
-        scores[key] = _normalizePercent(pct);
-        if (label.toLowerCase().contains("probabilidad de avance")) {
-          probAvance = _normalizePercent(pct);
-        }
-      }
-
-      final cleanRest = rest
-          .replaceAll(percentRegex, '')
-          .replaceAll('()', '')
-          .trim();
-      if (cleanRest.isNotEmpty) positives.add(cleanRest);
-      if (i == 0) overallSummary = cleanRest;
-    }
-
-    String toneLabel;
-    final p = probAvance ?? 70;
-    if (p >= 80)
-      toneLabel = "Muy positivo";
-    else if (p >= 60)
-      toneLabel = "Positivo";
-    else if (p >= 40)
-      toneLabel = "Neutral / con matices";
-    else
-      toneLabel = "Bajo / Riesgo";
-
-    return AnalysisResult(
-      partnerName: partnerName,
-      overallTitle: "Evaluación de conversación",
-      toneLabel: toneLabel,
-      overallSummary: overallSummary,
-      scores: scores,
-      positives: positives,
-      note: _defaultIaNote,
-    );
-  }
-
-  AnalysisResult _fallbackAnalysis(String body, String partnerName) {
-    return AnalysisResult(
-      partnerName: partnerName,
-      overallTitle: "Análisis general",
-      toneLabel: "Resumen IA",
-      overallSummary: body,
-      scores: const {},
-      positives: const [],
-      note: _defaultIaNote,
-    );
-  }
-
-  void _showAnalysisModal(AnalysisResult result) {
-    // Modal de análisis (simplificado para mantener el archivo manejable)
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.85,
-        minChildSize: 0.6,
-        maxChildSize: 0.95,
-        builder: (ctx, scrollController) => Column(
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                controller: scrollController,
-                padding: const EdgeInsets.all(20),
-                children: [
-                  Text(
-                    "Análisis IA - \${result.partnerName}",
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade500,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          result.toneLabel,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          result.overallSummary,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -1147,7 +1128,7 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-// ================== CHAT SKELETON ==================
+// ================== STATES ==================
 
 class _ChatSkeleton extends StatelessWidget {
   const _ChatSkeleton();
@@ -1187,11 +1168,8 @@ class _ChatSkeleton extends StatelessWidget {
   }
 }
 
-// ================== EMPTY CHAT STATE ==================
-
 class _EmptyChatState extends StatelessWidget {
   final VoidCallback onCreateDate;
-
   const _EmptyChatState({required this.onCreateDate});
 
   @override
@@ -1242,12 +1220,9 @@ class _EmptyChatState extends StatelessWidget {
   }
 }
 
-// ================== CHAT ERROR STATE ==================
-
 class _ChatErrorState extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
-
   const _ChatErrorState({required this.message, required this.onRetry});
 
   @override

@@ -7,6 +7,8 @@ import 'package:date_and_doing/views/login/login_pages/email_login_page.dart';
 import 'package:date_and_doing/views/login/login_pages/phone_login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:date_and_doing/services/fcm_service.dart';
+import 'package:date_and_doing/services/session_bootstrap_service.dart';
 
 class DdLogin extends StatefulWidget {
   const DdLogin({super.key});
@@ -68,13 +70,21 @@ class _DdLoginState extends State<DdLogin> {
 
   Future<void> _handleGoogle() async {
     setState(() => _loading = true);
+
     try {
       final DdUser user = await _googleAuth.signInWithGoogle();
       print('✅ Google login OK: $user');
 
+      print('🚀 Iniciando FCM después del login...');
+      await FcmService.initFCM();
+      print('✅ FCM inicializado después del login');
+
+      print('🚀 Enviando token/ubicación al backend...');
+      await SessionBootstrapService().ensureDeviceData();
+      print('✅ Token/ubicación enviados al backend');
+
       if (!mounted) return;
 
-      // Navegar al Home
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const DdHome()),
@@ -83,7 +93,7 @@ class _DdLoginState extends State<DdLogin> {
       print('❌ Error Google: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error al iniciar con Google')),
+        SnackBar(content: Text('Error al iniciar con Google: $e')),
       );
     } finally {
       if (mounted) setState(() => _loading = false);

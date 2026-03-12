@@ -31,13 +31,15 @@ class _SplashPageState extends State<SplashPage>
       duration: const Duration(milliseconds: 900),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.7, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 0.7,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
-    );
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
 
     _controller.forward();
     _bootstrap();
@@ -74,8 +76,12 @@ class _SplashPageState extends State<SplashPage>
 
     // 2) FCM no bloquea
     try {
+      print("🚀 Antes de initFCM");
       await FcmService.initFCM();
-    } catch (_) {}
+      print("✅ Después de initFCM");
+    } catch (e) {
+      print("❌ Error initFCM: $e");
+    }
 
     // 3) Bootstrap de ubicación/FCM si está en null (NO bloquea)
     try {

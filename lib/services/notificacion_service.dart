@@ -5,10 +5,10 @@ class NotificacionService {
       FlutterLocalNotificationsPlugin();
 
   static Future<void> init() async {
-    AndroidInitializationSettings androidSettings =
+    const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    InitializationSettings initSettings = InitializationSettings(
+    const InitializationSettings initSettings = InitializationSettings(
       android: androidSettings,
     );
 
@@ -18,18 +18,25 @@ class NotificacionService {
   static Future<void> showSimpleNotification({
     required String title,
     required String body,
+    required bool playSound,
   }) async {
-    AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'date_and_doing',
-      'Notificacion Date ❤️ Doing',
-      channelDescription: 'Notificaciones generales de Date & Doing',
-      importance: Importance.max,
-      priority: Priority.high,
+    final AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          'date_and_doing',
+          'Notificacion Date ❤️ Doing',
+          channelDescription: 'Notificaciones generales de Date & Doing',
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: playSound,
+          enableVibration: true,
+        );
+
+    final NotificationDetails details = NotificationDetails(
+      android: androidDetails,
     );
 
-    NotificationDetails details = NotificationDetails(android: androidDetails);
     await _plugin.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000, // ID único
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
       body,
       details,

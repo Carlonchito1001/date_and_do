@@ -114,4 +114,39 @@ class SharedPreferencesService {
     }
     return id;
   }
+
+  // ================== DISTANCIA MÁXIMA DE BÚSQUEDA ==================
+  static String keyMaxDistance = 'max_distance';
+
+  Future<void> saveMaxDistance(int km) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(keyMaxDistance, km);
+  }
+
+  Future<int> getMaxDistance() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(keyMaxDistance) ?? 50; // Default: 50km
+  }
+
+  // ================== BOOL / STRING GENÉRICOS ==================
+
+  Future<void> saveBool(String key, bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
+  }
+
+  Future<bool?> getBool(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(key);
+  }
+
+  Future<void> saveStringValue(String key, String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(key, value);
+  }
+
+  Future<String?> getStringValue(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(key);
+  }
 }

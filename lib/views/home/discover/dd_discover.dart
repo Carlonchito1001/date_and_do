@@ -79,18 +79,38 @@ class _DdDiscoverState extends State<DdDiscover>
       users = [];
     });
 
-    final token = await SharedPreferencesService().getAccessToken();
+    final service = SharedPreferencesService();
+
+    final token = await service.getAccessToken();
+
     if (token == null) {
       if (!mounted) return;
+
       setState(() {
         loading = false;
         error = 'No hay sesión activa. Inicia sesión nuevamente.';
       });
+
       return;
     }
 
     try {
-      final result = await ApiService().sugerenciasMatch(accessToken: token);
+      /// DISTANCIA GUARDADA EN APP
+      final maxDistance = await service.getMaxDistance();
+
+      /// PREFERENCIAS DEL USUARIO (edad)
+      final prefs = await ApiService().getPreferences(accessToken: token);
+
+      final ageMin = prefs["ddp_int_age_min"] ?? 18;
+      final ageMax = prefs["ddp_int_age_max"] ?? 99;
+
+      final result = await ApiService().sugerenciasMatch(
+        accessToken: token,
+        maxDistanceKm: maxDistance,
+        ageMin: ageMin,
+        ageMax: ageMax,
+      );
+
       if (!mounted) return;
 
       setState(() {
@@ -99,6 +119,7 @@ class _DdDiscoverState extends State<DdDiscover>
       });
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         loading = false;
         error = 'Error al cargar sugerencias. Intenta nuevamente.';
@@ -112,7 +133,7 @@ class _DdDiscoverState extends State<DdDiscover>
 
     final name = (other["fullname"] ?? "Nuevo match").toString();
     final photo = (other["photo"] ?? "").toString();
-    
+
     // Extraer IDs del match
     final matchId = match["ddm_int_id"] ?? match["id"] ?? match["match_id"];
     final otherUserId = other["use_int_id"] ?? 0;
@@ -131,7 +152,9 @@ class _DdDiscoverState extends State<DdDiscover>
           matchedUserName: name,
           matchedUserPhoto: photo,
           matchId: matchId is int ? matchId : int.parse(matchId.toString()),
-          otherUserId: otherUserId is int ? otherUserId : int.parse(otherUserId.toString()),
+          otherUserId: otherUserId is int
+              ? otherUserId
+              : int.parse(otherUserId.toString()),
           currentUserPhoto: currentUserPhoto,
         ),
       ),
@@ -265,35 +288,50 @@ class _DdDiscoverState extends State<DdDiscover>
   }
 
   void _animateOut(String action) {
-    if (sendingSwipe) return;
-    if (users.isEmpty) return;
 
-    _controller.stop();
-    _controller.reset();
+  if (sendingSwipe) return;
+  if (users.isEmpty) return;
 
-    final size = MediaQuery.of(context).size;
+  _controller.stop();
+  _controller.reset();
 
-    final dx = action == "DISLIKE" ? -(size.width * 1.2) : (size.width * 1.2);
+  final size = MediaQuery.of(context).size;
 
-    final Offset end = action == "SUPERLIKE"
-        ? Offset(_dragOffset.dx, -(size.height * 1.1))
-        : Offset(dx, _dragOffset.dy);
+  final dx = action == "DISLIKE"
+      ? -(size.width * 1.2)
+      : (size.width * 1.2);
 
-    final double endRot = action == "DISLIKE" ? -_maxRotation : _maxRotation;
+  final Offset end = action == "SUPERLIKE"
+      ? Offset(_dragOffset.dx, -(size.height * 1.1))
+      : Offset(dx, _dragOffset.dy);
 
-    _posAnim = Tween<Offset>(
-      begin: _dragOffset,
-      end: end,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+  final double endRot =
+      action == "DISLIKE" ? -_maxRotation : _maxRotation;
 
-    _rotAnim = Tween<double>(
-      begin: _dragRotation,
-      end: endRot,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+  _posAnim = Tween<Offset>(
+    begin: _dragOffset,
+    end: end,
+  ).animate(
+    CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeIn,
+    ),
+  );
 
-    _lastAction = action;
-    _controller.forward();
-  }
+  _rotAnim = Tween<double>(
+    begin: _dragRotation,
+    end: endRot,
+  ).animate(
+    CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeIn,
+    ),
+  );
+
+  _lastAction = action;
+
+  _controller.forward();
+}
 
   void _onLike() => _animateOut("LIKE");
   void _onDislike() => _animateOut("DISLIKE");

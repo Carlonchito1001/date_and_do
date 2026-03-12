@@ -7,8 +7,9 @@ class ApiEndpoints {
 
   //home - match - likes
 
-  static String sugerenciasMatch =
-      '$baseUrl/dateanddo/discover/?radius_km=10&limit=1000000';
+  static String sugerenciasMatch(int maxDistanceKm) =>
+  '$baseUrl/dateanddo/discover/?radius_km=10&limit=${maxDistanceKm * 1000}';
+
   static String swipes = '$baseUrl/dateanddo/swipes/';
   static String refreshToken = '$baseUrl/auth/token/refresh/';
   static String allMatches = '$baseUrl/dateanddo/matches/';
@@ -26,4 +27,6 @@ class ApiEndpoints {
   static String markMessagesAsRead = "$baseUrl/dateanddo/messages/mark_read/";
   static String lugares(String category) =>
       "https://ig.finatech.com.pe/api.php/profiles?category=$category&limit=20";
+
+      static final preferences = "$baseUrl/dateanddo/preferences/";
 }
