@@ -1,21 +1,29 @@
-// dd_chat_page.dart
 import 'dart:async';
 import 'dart:ui';
 import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/models/dd_date.dart';
-import 'package:date_and_doing/models/analysis_result.dart';
 import 'package:date_and_doing/services/chat_ai_service.dart';
 import 'package:date_and_doing/services/chat_websocket_service.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
 import 'package:date_and_doing/views/history/history_levels.dart';
+import 'package:date_and_doing/views/home/alini/alini_call_button.dart';
+import 'package:date_and_doing/views/home/alini/alini_status_model.dart';
+import 'package:date_and_doing/views/home/alini/alini_status_service.dart';
 import 'package:date_and_doing/views/home/discover/widgets/chat_date_card.dart';
 import 'package:date_and_doing/views/home/discover/widgets/dd_create_activity_page.dart';
+import 'package:date_and_doing/widgets/analysis_bottom_sheet.dart';
 import 'package:date_and_doing/widgets/modal_alini_unlocked.dart';
-import 'package:date_and_doing/widgets/modal_day_chat.dart';
 import 'package:flutter/material.dart';
-
-int ChatDay =
-    1; // variable global para controlar el día del chat (puede ser parte de un provider o similar en una app real)
+import 'package:date_and_doing/views/home/date_flow/chat_date_permissions.dart';
+import 'package:date_and_doing/views/home/date_flow/chat_date_highlight.dart';
+import 'package:date_and_doing/views/home/date_flow/chat_date_banner.dart';
+import 'package:date_and_doing/views/home/date_flow/chat_date_banner_sheet.dart';
+import 'package:date_and_doing/views/home/date_flow/chat_timeline_builder.dart';
+import 'package:date_and_doing/views/home/date_flow/chat_date_timeline_filter.dart';
+import 'package:date_and_doing/views/home/date_flow/chat_date_refresh_helper.dart';
+import 'package:date_and_doing/views/home/date_flow/chat_date_confirmed_modal.dart';
+import 'package:date_and_doing/views/home/date_flow/chat_system_message_bubble.dart';
+import 'package:date_and_doing/views/home/date_flow/chat_timeline_api_mapper.dart';
 
 enum _ChatMenuAction { refreshDates, historyWorld, ai }
 
@@ -61,7 +69,9 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
   bool _analyzing = false;
   bool _shownAliniUnlockedThisSession = false;
 
-  // ✅ Usa tu ChatAiService (ya lo tienes)
+  final AliniStatusService _aliniService = AliniStatusService();
+  AliniStatusModel _aliniStatus = AliniStatusModel.empty;
+
   late final ChatAiService _ai = ChatAiService(
     iaUrl:
         'https://n8n.fintbot.pe/webhook/be664844-a373-4376-888a-170049d6f2d5',
@@ -73,26 +83,48 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _bootstrap();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndShowAliniUnlocked();
-    });
   }
 
   Future<void> _bootstrap() async {
     await _loadUserId();
     await _loadDates();
     await _loadMessages();
+    await _loadAliniStatus();
     await _initWebSocket();
-    if (!mounted) return;
-    // _scrollToBottom(animate: false);
-    // Future.delayed(const Duration(milliseconds: 120), () {
-    //   if (mounted) _scrollToBottom(animate: false);
-    // });
   }
 
   Future<void> _loadUserId() async {
     _currentUserId = await SharedPreferencesService().getUserIdOrThrow();
+  }
+
+  Future<void> _loadAliniStatus() async {
+    try {
+      final nextStatus = await _aliniService.fetch(widget.matchId);
+
+      if (!mounted) return;
+
+      final justUnlocked = !_aliniStatus.enabled && nextStatus.enabled;
+
+      setState(() {
+        _aliniStatus = nextStatus;
+      });
+
+      if (justUnlocked && !_shownAliniUnlockedThisSession) {
+        _shownAliniUnlockedThisSession = true;
+
+        final wantsTry = await showDialog<bool>(
+          context: context,
+          barrierDismissible: true,
+          builder: (_) => ModalAliniUnlocked(partnerName: widget.nombre),
+        );
+
+        if (wantsTry == true) {
+          _iniciarAliniVideoCall();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading Alini status: $e');
+    }
   }
 
   Future<void> _initWebSocket() async {
@@ -130,16 +162,63 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     }
   }
 
-  // ✅ WS: backend manda chat.message
   void _onWebSocketMessage(Map<String, dynamic> message) async {
     if (!mounted) return;
 
     _currentUserId ??= await SharedPreferencesService().getUserIdOrThrow();
 
     final type = (message['type'] ?? '').toString();
+
+    if (type == 'alini.unlocked') {
+      await _loadAliniStatus();
+      return;
+    }
+
+    if (type == 'match.event') {
+      final wsMatchId = message['ddm_int_id'];
+      if (wsMatchId != null &&
+          wsMatchId.toString() != widget.matchId.toString()) {
+        return;
+      }
+
+      DateTime createdAt;
+      try {
+        createdAt = DateTime.parse(message['created_at']?.toString() ?? '');
+      } catch (_) {
+        createdAt = DateTime.now();
+      }
+
+      final newEvent = {
+        "id":
+            "event_${message['dde_int_id'] ?? DateTime.now().millisecondsSinceEpoch}",
+        "sender_id": -999,
+        "autor": "Sistema",
+        "text": (message['dde_txt_title'] ?? '').toString(),
+        "hora":
+            "${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}",
+        "fecha": createdAt.toIso8601String().substring(0, 10),
+        "is_read": true,
+        "is_temp": false,
+        "is_system": true,
+        "event_type": message['dde_txt_type'],
+        "event_body": message['dde_txt_body'],
+      };
+
+      setState(() {
+        final alreadyExists = _messages.any(
+          (m) => m['id'].toString() == newEvent['id'].toString(),
+        );
+        if (!alreadyExists) {
+          _messages.add(newEvent);
+        }
+      });
+
+      _scrollToBottom(animate: true);
+      return;
+    }
+
     if (type != 'chat.message') return;
 
-    // ✅ Filtra por match
     final wsMatchId = message['ddm_int_id'];
     if (wsMatchId != null &&
         wsMatchId.toString() != widget.matchId.toString()) {
@@ -176,14 +255,12 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     };
 
     setState(() {
-      // evita duplicados por id
       if (serverMsgId != null &&
           _messages.any((m) => m['id'].toString() == serverMsgId.toString())) {
         return;
       }
 
       if (isMine) {
-        // ✅ reemplaza el último temp con ese texto
         final idx = _messages.lastIndexWhere(
           (m) => m['is_temp'] == true && (m['text']?.toString() == body),
         );
@@ -199,7 +276,6 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
 
     _scrollToBottom(animate: true);
 
-    // marcar como leído si yo soy receptor
     if (_currentUserId != null &&
         receiverId != null &&
         receiverId.toString() == _currentUserId.toString()) {
@@ -226,10 +302,34 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     }
   }
 
+  DdDate? get _highlightedDate {
+    return ChatDateHighlight.pick(_dates, _currentUserId);
+  }
+
+  List<ChatTimelineItem> get _timelineItems {
+    final relevantDates = ChatDateTimelineFilter.pickRelevant(
+      _dates,
+      _currentUserId,
+    );
+
+    return ChatTimelineBuilder.build(dates: relevantDates, messages: _messages);
+  }
+
   Future<void> _confirmDate(DdDate d) async {
     try {
-      await _api.confirmDate(d.id);
-      await _loadDates();
+      final updated = await _api.confirmDate(d.id);
+
+      await ChatDateRefreshHelper.refreshAll(
+        loadDates: _loadDates,
+        loadAliniStatus: _loadAliniStatus,
+      );
+
+      if (!mounted) return;
+
+      final confirmedDate = DdDate.fromJson(updated);
+
+      await showChatDateConfirmedModal(context, date: confirmedDate);
+
       _showToast("✅ Cita confirmada", Colors.green);
     } catch (e) {
       _showToast("❌ Error confirmando: $e", Colors.red);
@@ -238,8 +338,17 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
 
   Future<void> _rejectDate(DdDate d) async {
     try {
-      await _api.rejectDate(d.id);
-      await _loadDates();
+      final updated = await _api.rejectDate(d.id);
+
+      await ChatDateRefreshHelper.refreshAll(
+        loadDates: _loadDates,
+        loadAliniStatus: _loadAliniStatus,
+      );
+
+      if (!mounted) return;
+
+      final rejectedDate = DdDate.fromJson(updated);
+
       _showToast("✅ Cita rechazada", Colors.orange);
     } catch (e) {
       _showToast("❌ Error rechazando: $e", Colors.red);
@@ -259,7 +368,6 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     );
   }
 
-  // ✅ Enviar tipo WhatsApp (temp inmediato)
   Future<void> _sendMessage() async {
     final text = _messageCtrl.text.trim();
     if (text.isEmpty || _sendingMsg) return;
@@ -294,13 +402,13 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
           body: text,
         );
       } else {
-        // fallback HTTP
         await _api.sendMessage(
           matchId: widget.matchId,
           receiverId: widget.otherUserId,
           body: text,
         );
         await _loadMessages();
+        await _loadAliniStatus();
       }
 
       if (!mounted) return;
@@ -316,7 +424,6 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     }
   }
 
-  // ✅ Cargar mensajes SOLO del match (y conservar temps)
   Future<void> _loadMessages() async {
     setState(() {
       _loadingMessages = true;
@@ -326,27 +433,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     try {
       _currentUserId ??= await SharedPreferencesService().getUserIdOrThrow();
 
-      final list = await _api.getMessagesByMatch(widget.matchId);
-
-      final filtered = list
-          .where((m) => (m["ddmsg_txt_status"] ?? "ACTIVO") == "ACTIVO")
-          .toList();
-
-      filtered.sort((a, b) {
-        final da = DateTime.parse(
-          (a["ddmsg_timestamp_datecreate"] ??
-                  a["created_at"] ??
-                  DateTime.now().toIso8601String())
-              .toString(),
-        );
-        final db = DateTime.parse(
-          (b["ddmsg_timestamp_datecreate"] ??
-                  b["created_at"] ??
-                  DateTime.now().toIso8601String())
-              .toString(),
-        );
-        return da.compareTo(db);
-      });
+      final timeline = await _api.getMatchTimeline(widget.matchId);
 
       if (!mounted) return;
 
@@ -354,35 +441,34 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
           .where((m) => m['is_temp'] == true)
           .toList();
 
+      final mapped = ChatTimelineApiMapper.extractMessages(
+        timeline,
+        _currentUserId,
+        widget.nombre,
+      );
+
       setState(() {
         _messages
           ..clear()
-          ..addAll(
-            filtered.map((m) {
-              final createdAt = DateTime.parse(
-                (m["ddmsg_timestamp_datecreate"] ??
-                        m["created_at"] ??
-                        DateTime.now().toIso8601String())
-                    .toString(),
-              );
+          ..addAll(mapped);
 
-              final senderId = m["use_int_sender"] ?? m["sender_id"];
-              final isMine = senderId.toString() == _currentUserId.toString();
+        if (tempMessages.isNotEmpty) {
+          for (final temp in tempMessages) {
+            final tempText = (temp['text'] ?? '').toString();
 
-              return {
-                "id": m["ddmsg_int_id"] ?? m["id"],
-                "sender_id": senderId,
-                "autor": isMine ? "Yo" : widget.nombre,
-                "text": m["ddmsg_txt_body"] ?? m["body"] ?? "",
-                "hora": TimeOfDay.fromDateTime(createdAt).format(context),
-                "fecha": createdAt.toIso8601String().substring(0, 10),
-                "is_read": (m["ddmsg_bool_read"] == true || m["read"] == true),
-                "is_temp": false,
-              };
-            }),
-          );
+            final alreadyExists = _messages.any(
+              (m) =>
+                  (m['is_temp'] != true) &&
+                  (m['text'] ?? '').toString() == tempText &&
+                  (m['sender_id']?.toString() == _currentUserId?.toString()),
+            );
 
-        if (tempMessages.isNotEmpty) _messages.addAll(tempMessages);
+            if (!alreadyExists) {
+              _messages.add(temp);
+            }
+          }
+        }
+
         _loadingMessages = false;
       });
 
@@ -390,7 +476,10 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
       Future.delayed(const Duration(milliseconds: 120), () {
         if (mounted) _scrollToBottom(animate: false);
       });
-      await _markUnreadMessagesAsRead(filtered);
+
+      await _markUnreadMessagesAsRead(
+        timeline.where((e) => e.isMessage).map((e) => e.data).toList(),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -415,39 +504,8 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     } catch (_) {}
   }
 
-  void _checkAndShowAliniUnlocked() async {
-    if (ChatDay < 3) return;
-    if (_shownAliniUnlockedThisSession) return;
-
-    _shownAliniUnlockedThisSession = true;
-
-    final wantsTry = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (_) => ModalAliniUnlocked(partnerName: widget.nombre),
-    );
-
-    if (wantsTry == true) _iniciarAliniVideoCall();
-  }
-
   void _iniciarAliniVideoCall() {
     _showToast("Iniciando Alini Video Call...", Colors.blue);
-  }
-
-  void validateAliniDias({
-    required BuildContext context,
-    required int chatDay,
-    required VoidCallback onAllowed,
-  }) {
-    if (chatDay <= 2) {
-      showDialog(
-        context: context,
-        barrierDismissible: true,
-        builder: (_) => ModalDayChat(chatDay: chatDay),
-      );
-    } else {
-      onAllowed();
-    }
   }
 
   bool _esMio(Map<String, dynamic> msg) {
@@ -466,8 +524,6 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     _scrollController.dispose();
     super.dispose();
   }
-
-  // ===================== IA (usando ChatAiService) =====================
 
   Future<void> _analyzeChatForToday() async {
     if (_messages.isEmpty) return;
@@ -489,85 +545,13 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
       );
 
       if (!mounted) return;
-      _showAnalysisModal(result);
+      await showAnalysisBottomSheet(context, result: result);
     } catch (e) {
       _showToast("Error IA: $e", Colors.red);
     } finally {
       if (mounted) setState(() => _analyzing = false);
     }
   }
-
-  void _showAnalysisModal(AnalysisResult result) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.85,
-        minChildSize: 0.6,
-        maxChildSize: 0.95,
-        builder: (ctx, scrollController) => Column(
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                controller: scrollController,
-                padding: const EdgeInsets.all(20),
-                children: [
-                  Text(
-                    "Análisis IA - ${result.partnerName}",
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade500,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          result.toneLabel,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          result.overallSummary,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ===================== UI =====================
 
   @override
   Widget build(BuildContext context) {
@@ -586,6 +570,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
                 color: cs.primary,
                 backgroundColor: cs.surfaceVariant,
               ),
+            _buildDateBanner(),
             Expanded(child: _buildBody(cs)),
             _buildInputArea(cs),
           ],
@@ -787,62 +772,52 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     );
   }
 
-  // ✅ FIX CRÍTICO: ahora sí contamos el header de mensajes
-  int _calculateItemCount() {
-    int count = 0;
-
-    if (_dates.isNotEmpty) {
-      count += 1; // header "Próximas citas"
-      count += _dates.length;
-    }
-
-    if (_messages.isNotEmpty) {
-      count += 1; // header "Mensajes"  ✅ (ESTO FALTABA)
-      count += _messages.length;
-    }
-
-    return count;
-  }
+  int _calculateItemCount() => _timelineItems.length;
 
   Widget _buildListItem(int index, ColorScheme cs) {
-    final total = _calculateItemCount();
+    final total = _timelineItems.length;
     final realIndex = total - 1 - index;
-    int i = realIndex;
+    final item = _timelineItems[realIndex];
 
-    // ---- DATES ----
-    if (_dates.isNotEmpty) {
-      if (i == 0) {
-        return _buildSectionHeader("Próximas citas", Icons.event_rounded, cs);
-      }
-      i -= 1;
+    switch (item.type) {
+      case ChatTimelineItemType.sectionHeader:
+        final title = item.headerTitle ?? "";
+        final icon = title == "Próximas citas"
+            ? Icons.event_rounded
+            : Icons.chat_rounded;
 
-      if (i < _dates.length) {
-        final d = _dates[i];
-        final isCreator = d.statusUpper == "ACTIVO" && _currentUserId != null;
+        return Padding(
+          padding: title == "Mensajes"
+              ? const EdgeInsets.only(top: 16, bottom: 8)
+              : EdgeInsets.zero,
+          child: _buildSectionHeader(title, icon, cs),
+        );
+
+      case ChatTimelineItemType.dateCard:
+        final d = item.date!;
+        final permissions = ChatDatePermissions.fromDate(
+          date: d,
+          currentUserId: _currentUserId,
+        );
 
         return ChatDateCard(
           date: d,
-          onConfirm: () => _confirmDate(d),
-          onReject: () => _rejectDate(d),
-          isCreator: isCreator,
-          creatorName: isCreator ? "Tú" : widget.nombre,
+          onConfirm: permissions.canConfirm ? () => _confirmDate(d) : null,
+          onReject: permissions.canReject ? () => _rejectDate(d) : null,
+          isCreator: permissions.isCreator,
+          creatorName: permissions.isCreator ? "Tú" : widget.nombre,
         );
-      }
-      i -= _dates.length;
-    }
 
-    // ---- MESSAGES ----
-    if (_messages.isNotEmpty) {
-      if (i == 0) {
-        return Padding(
-          padding: const EdgeInsets.only(top: 16, bottom: 8),
-          child: _buildSectionHeader("Mensajes", Icons.chat_rounded, cs),
-        );
-      }
-      i -= 1;
+      case ChatTimelineItemType.message:
+        final msg = item.message!;
+        final isSystem = msg["is_system"] == true;
 
-      if (i < _messages.length) {
-        final msg = _messages[i];
+        if (isSystem) {
+          return ChatSystemMessageBubble(
+            message: (msg["text"] ?? "").toString(),
+          );
+        }
+
         final esMio = _esMio(msg);
 
         return _MessageBubble(
@@ -853,10 +828,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
           senderName: esMio ? null : msg["autor"] as String,
           avatarUrl: esMio ? null : widget.foto,
         );
-      }
     }
-
-    return const SizedBox.shrink();
   }
 
   Widget _buildSectionHeader(String title, IconData icon, ColorScheme cs) {
@@ -891,6 +863,34 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildDateBanner() {
+    final highlighted = _highlightedDate;
+    if (highlighted == null) return const SizedBox.shrink();
+
+    final isCreator =
+        _currentUserId != null &&
+        highlighted.createdByUserId != null &&
+        _currentUserId == highlighted.createdByUserId;
+
+    return ChatDateBanner(
+      date: highlighted,
+      isCreator: isCreator,
+      onTap: () async {
+        await showChatDateBannerSheet(
+          context,
+          date: highlighted,
+          isCreator: isCreator,
+          onConfirm: highlighted.isPending && !isCreator
+              ? () => _confirmDate(highlighted)
+              : null,
+          onReject: highlighted.isPending && !isCreator
+              ? () => _rejectDate(highlighted)
+              : null,
+        );
+      },
+    );
+  }
+
   Widget _buildInputArea(ColorScheme cs) {
     return Container(
       decoration: BoxDecoration(
@@ -905,15 +905,9 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
             children: [
-              _buildInputButton(
-                icon: Icons.videocam_rounded,
-                onPressed: () {
-                  validateAliniDias(
-                    context: context,
-                    chatDay: ChatDay,
-                    onAllowed: _iniciarAliniVideoCall,
-                  );
-                },
+              AliniCallButton(
+                status: _aliniStatus,
+                onStartCall: _iniciarAliniVideoCall,
               ),
               Expanded(
                 child: Container(
@@ -989,27 +983,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
       ),
     );
   }
-
-  Widget _buildInputButton({
-    required IconData icon,
-    required VoidCallback onPressed,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          margin: const EdgeInsets.only(right: 8),
-          child: Icon(icon, size: 24),
-        ),
-      ),
-    );
-  }
 }
-
-// ================== MESSAGE BUBBLE ==================
 
 class _MessageBubble extends StatelessWidget {
   final String message;
@@ -1127,8 +1101,6 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 }
-
-// ================== STATES ==================
 
 class _ChatSkeleton extends StatelessWidget {
   const _ChatSkeleton();

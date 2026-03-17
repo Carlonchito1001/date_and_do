@@ -86,7 +86,6 @@ class IslandLevelNode extends StatelessWidget {
 
               // 🌟 CÍRCULO DEL NIVEL
               if (level.status == WorldLevelStatus.current)
-                // anillo alrededor del nivel actual
                 Container(
                   width: 90,
                   height: 90,
@@ -98,6 +97,7 @@ class IslandLevelNode extends StatelessWidget {
                     ),
                   ),
                 ),
+
               Container(
                 width: 78,
                 height: 78,
@@ -140,7 +140,8 @@ class IslandLevelNode extends StatelessWidget {
 
           // Tarjetita blanca con texto
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            constraints: const BoxConstraints(minWidth: 120, maxWidth: 160),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(18),
@@ -156,14 +157,25 @@ class IslandLevelNode extends StatelessWidget {
               children: [
                 Text(
                   level.title,
+                  textAlign: TextAlign.center,
                   style: textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
+                Text(
+                  level.subtitle,
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: Colors.black87.withOpacity(0.65),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
                 Text(
                   level.date,
+                  textAlign: TextAlign.center,
                   style: textTheme.bodySmall?.copyWith(color: Colors.black54),
                 ),
               ],

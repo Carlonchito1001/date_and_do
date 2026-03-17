@@ -30,7 +30,7 @@ class _DdMessagesState extends State<DdMessages> {
   // {
   //  matchId, otherUserId, nombre, foto,
   //  ultimoMensaje, hora, noLeidos, timestamp
-  // }  
+  // }
   List<Map<String, dynamic>> _conversations = [];
 
   // Para actualizar rápido por matchId
@@ -116,10 +116,17 @@ class _DdMessagesState extends State<DdMessages> {
   }
 
   Future<void> _loadConversations() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final firstLoad = _conversations.isEmpty;
+    if (firstLoad) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    } else {
+      setState(() {
+        _error = null;
+      });
+    }
 
     try {
       final myId = _myId ?? await _prefs.getUserIdOrThrow();

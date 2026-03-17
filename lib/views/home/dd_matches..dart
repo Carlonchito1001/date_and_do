@@ -27,10 +27,17 @@ class _DdMatchesState extends State<DdMatches> {
   }
 
   Future<void> _loadMatches() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final firstLoad = matches.isEmpty;
+    if (firstLoad) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    } else {
+      setState(() {
+        _error = null;
+      });
+    }
 
     try {
       final accessToken = await _sp.getAccessToken();
@@ -159,16 +166,6 @@ class _DdMatchesState extends State<DdMatches> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      // appBar: AppBar(
-      //   title: const Text('Tus Matches'),
-      //   centerTitle: true,
-      //   actions: [
-      //     IconButton(
-      //       onPressed: _loading ? null : _loadMatches,
-      //       icon: const Icon(Icons.refresh),
-      //     ),
-      //   ],
-      // ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _loadMatches,

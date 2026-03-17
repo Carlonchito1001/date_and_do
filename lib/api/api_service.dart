@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:date_and_doing/models/dd_date.dart';
+import 'package:date_and_doing/views/home/date_flow/chat_timeline_api_item.dart';
 import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
 
@@ -272,14 +273,40 @@ class ApiService {
   }
 
   // ================== SUGERENCIAS ==================
+  // Future<List<Map<String, dynamic>>> sugerenciasMatch({
+  //   required String accessToken,
+  //   required int maxDistanceKm, required ageMin, required ageMax,
+  // }) async {
+  //   final response = await _requestWithRefresh((token) {
+  //     return http.get(
+  //       Uri.parse(ApiEndpoints.sugerenciasMatch(maxDistanceKm)),
+
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         'Accept': 'application/json',
+  //         'Authorization': 'Bearer $token',
+  //       },
+  //     );
+  //   });
+
+  //   if (response.statusCode == 200) {
+  //     final List<dynamic> data = jsonDecode(response.body);
+  //     return data.cast<Map<String, dynamic>>();
+  //   }
+
+  //   throw Exception(
+  //     'Failed to get suggestions: ${response.statusCode} - ${response.body}',
+  //   );
+  // }
+
   Future<List<Map<String, dynamic>>> sugerenciasMatch({
     required String accessToken,
-    required int maxDistanceKm, required ageMin, required ageMax,
+    required int maxDistanceKm,
+    int limit = 50,
   }) async {
     final response = await _requestWithRefresh((token) {
       return http.get(
-        Uri.parse(ApiEndpoints.sugerenciasMatch(maxDistanceKm)),
-
+        Uri.parse(ApiEndpoints.sugerenciasMatch(maxDistanceKm, limit: limit)),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -587,12 +614,73 @@ class ApiService {
     );
   }
 
-  Future<void> confirmDate(int dateId) async {
-    await patchDate(dateId: dateId, data: {"ddd_txt_status": "CONFIRMADA"});
+  Future<Map<String, dynamic>> confirmDate(int dateId) async {
+    final response = await _requestWithRefresh((token) {
+      return http.post(
+        Uri.parse(ApiEndpoints.confirmDate(dateId)),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({}),
+      );
+    });
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception(
+      "Failed to confirm date: ${response.statusCode} - ${response.body}",
+    );
   }
 
-  Future<void> rejectDate(int dateId) async {
-    await patchDate(dateId: dateId, data: {"ddd_txt_status": "RECHAZADA"});
+  Future<Map<String, dynamic>> rejectDate(int dateId) async {
+    final response = await _requestWithRefresh((token) {
+      return http.post(
+        Uri.parse(ApiEndpoints.rejectDate(dateId)),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({}),
+      );
+    });
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception(
+      "Failed to reject date: ${response.statusCode} - ${response.body}",
+    );
+  }
+
+  Future<Map<String, dynamic>> completeDate(int dateId) async {
+    final response = await _requestWithRefresh((token) {
+      return http.post(
+        Uri.parse(ApiEndpoints.completeDate(dateId)),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({}),
+      );
+    });
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception(
+      "Failed to complete date: ${response.statusCode} - ${response.body}",
+    );
   }
 
   Future<Map<String, dynamic>> sendMessage({
@@ -627,28 +715,6 @@ class ApiService {
       "Failed to send message: ${response.statusCode} - ${response.body}",
     );
   }
-
-  // Future<Map<String, dynamic>> getPreferences() async {
-  //   final response = await _requestWithRefresh((token) {
-  //     return http.get(
-  //       Uri.parse(ApiEndpoints.preferencias),
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //         "Accept": "application/json",
-  //         "X-Service-Code": "dateanddo",
-  //         "Authorization": "Bearer $token",
-  //       },
-  //     );
-  //   });
-
-  //   if (response.statusCode == 200) {
-  //     return jsonDecode(response.body) as Map<String, dynamic>;
-  //   }
-
-  //   throw Exception(
-  //     "Failed to get preferences: ${response.statusCode} - ${response.body}",
-  //   );
-  // }
 
   Future<Map<String, dynamic>> updateMatchPreferences({
     required int userId,
@@ -858,4 +924,86 @@ class ApiService {
       throw Exception("Error actualizando preferencias");
     }
   }
+
+  Future<Map<String, dynamic>> getAliniStatus(int matchId) async {
+    final accessToken = await SharedPreferencesService().getAccessToken();
+
+    if (accessToken == null || accessToken.isEmpty) {
+      throw Exception('No hay access token');
+    }
+
+    final response = await http.get(
+      Uri.parse(ApiEndpoints.aliniStatus(matchId)),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception(
+      'Error obteniendo estado de Alini: ${response.statusCode} ${response.body}',
+    );
+  }
+
+  Future<List<DdDate>> getHistoryWorldDates(int matchId) async {
+    print("Fetching history world dates for match ID: $matchId");
+    final response = await _requestWithRefresh((token) {
+      return http.get(
+        Uri.parse("${ApiEndpoints.dates}history_world/?match_id=$matchId"),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Service-Code': 'dateanddo',
+          'Authorization': 'Bearer $token',
+        },
+      );
+    });
+
+    if (response.statusCode == 200) {
+      print("Raw response body: ${response.body}");
+      final List<dynamic> raw = jsonDecode(response.body);
+      return raw
+          .cast<Map<String, dynamic>>()
+          .map((j) => DdDate.fromJson(j))
+          .toList();
+    }
+
+    throw Exception(
+      'Failed to get history world dates: ${response.statusCode} - ${response.body}',
+    );
+  }
+
+
+  Future<List<ChatTimelineApiItem>> getMatchTimeline(int matchId) async {
+  final response = await _requestWithRefresh((token) {
+    return http.get(
+      Uri.parse(ApiEndpoints.matchTimeline(matchId)),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Service-Code': 'dateanddo',
+        'Authorization': 'Bearer $token',
+      },
+    );
+  });
+
+  if (response.statusCode == 200) {
+    final List<dynamic> raw = jsonDecode(response.body);
+    return raw
+        .cast<Map<String, dynamic>>()
+        .map((j) => ChatTimelineApiItem.fromJson(j))
+        .toList();
+  }
+
+  throw Exception(
+    'Failed to get timeline: ${response.statusCode} - ${response.body}',
+  );
+}
+
+  
 }

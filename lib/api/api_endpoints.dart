@@ -7,8 +7,11 @@ class ApiEndpoints {
 
   //home - match - likes
 
-  static String sugerenciasMatch(int maxDistanceKm) =>
-  '$baseUrl/dateanddo/discover/?radius_km=10&limit=${maxDistanceKm * 1000}';
+  // static String sugerenciasMatch(int maxDistanceKm) =>
+  // '$baseUrl/dateanddo/discover/?radius_km=10&limit=${maxDistanceKm * 1000}';
+
+  static String sugerenciasMatch(int maxDistanceKm, {int limit = 50}) =>
+      '$baseUrl/dateanddo/discover/?radius_km=$maxDistanceKm&limit=$limit';
 
   static String swipes = '$baseUrl/dateanddo/swipes/';
   static String refreshToken = '$baseUrl/auth/token/refresh/';
@@ -28,5 +31,13 @@ class ApiEndpoints {
   static String lugares(String category) =>
       "https://ig.finatech.com.pe/api.php/profiles?category=$category&limit=20";
 
-      static final preferences = "$baseUrl/dateanddo/preferences/";
+  static final preferences = "$baseUrl/dateanddo/preferences/";
+  static String aliniStatus(int matchId) =>
+      '$baseUrl/dateanddo/matches/$matchId/alini_status/';
+
+  static String confirmDate(int dateId) => "$dates$dateId/confirm/";
+  static String rejectDate(int dateId) => "$dates$dateId/reject/";
+  static String completeDate(int dateId) => "$dates$dateId/complete/";
+  static String matchTimeline(int matchId) =>
+    "$allMatches$matchId/timeline/";
 }

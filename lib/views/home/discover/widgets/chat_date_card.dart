@@ -6,337 +6,306 @@ class ChatDateCard extends StatelessWidget {
   final VoidCallback? onConfirm;
   final VoidCallback? onReject;
   final bool isCreator;
-  final String? creatorName;
+  final String creatorName;
 
   const ChatDateCard({
     super.key,
     required this.date,
     this.onConfirm,
     this.onReject,
-    this.isCreator = false,
-    this.creatorName,
+    required this.isCreator,
+    required this.creatorName,
   });
+
+  Color _statusColor() {
+    if (date.isConfirmed) return Colors.green;
+    if (date.isRejected) return Colors.red;
+    if (date.isCompleted) return Colors.blueGrey;
+    return Colors.orange;
+  }
+
+  IconData _statusIcon() {
+    if (date.isConfirmed) return Icons.check_circle_rounded;
+    if (date.isRejected) return Icons.cancel_rounded;
+    if (date.isCompleted) return Icons.emoji_events_rounded;
+    return Icons.schedule_rounded;
+  }
+
+  String _statusText() {
+    if (date.isConfirmed) return "Cita confirmada";
+    if (date.isRejected) return "Cita rechazada";
+    if (date.isCompleted) return "Cita completada";
+    return "Cita pendiente";
+  }
+
+  String _formatDate(DateTime dt) {
+    final dd = dt.day.toString().padLeft(2, '0');
+    final mm = dt.month.toString().padLeft(2, '0');
+    final yyyy = dt.year.toString();
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mi = dt.minute.toString().padLeft(2, '0');
+    return "$dd/$mm/$yyyy • $hh:$mi";
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-
-    // Determinar colores según estado
-    Color statusColor;
-    IconData statusIcon;
-    String statusText;
-
-    if (date.isConfirmed) {
-      statusColor = Colors.green;
-      statusIcon = Icons.check_circle_rounded;
-      statusText = "¡Confirmada!";
-    } else if (date.isRejected) {
-      statusColor = Colors.red;
-      statusIcon = Icons.cancel_rounded;
-      statusText = "Rechazada";
-    } else {
-      statusColor = Colors.orange;
-      statusIcon = Icons.schedule_rounded;
-      statusText = "Pendiente";
-    }
-
-    final dt = date.scheduledAt;
-    final dateLabel =
-        "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}";
-    final timeLabel =
-        "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+    final statusColor = _statusColor();
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [cs.primary.withOpacity(0.1), cs.secondary.withOpacity(0.05)],
+          colors: [
+            statusColor.withOpacity(0.10),
+            cs.surface,
+          ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: statusColor.withOpacity(0.3), width: 2),
+        border: Border.all(
+          color: statusColor.withOpacity(0.35),
+          width: 1.4,
+        ),
         boxShadow: [
           BoxShadow(
-            color: statusColor.withOpacity(0.1),
-            blurRadius: 12,
+            color: statusColor.withOpacity(0.10),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header con estado
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(18),
-                topRight: Radius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Estado
+            Row(
+              children: [
+                Icon(
+                  _statusIcon(),
+                  color: statusColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _statusText(),
+                  style: textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: statusColor,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            // Quién propuso
+            Text(
+              isCreator
+                  ? "Tú propusiste esta cita"
+                  : "$creatorName te propuso una cita",
+              style: textTheme.bodySmall?.copyWith(
+                color: cs.onSurface.withOpacity(0.65),
+                fontWeight: FontWeight.w600,
               ),
             ),
-            child: Row(
+
+            const SizedBox(height: 14),
+
+            // Título
+            Text(
+              date.title,
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: cs.onSurface,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Descripción
+            if (date.description.trim().isNotEmpty)
+              Text(
+                date.description,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurface.withOpacity(0.80),
+                  height: 1.35,
+                ),
+              ),
+
+            if (date.description.trim().isNotEmpty) const SizedBox(height: 12),
+
+            // Fecha
+            Row(
               children: [
-                Icon(statusIcon, color: statusColor, size: 20),
+                Icon(
+                  Icons.calendar_today_rounded,
+                  size: 16,
+                  color: cs.primary,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    statusText,
-                    style: textTheme.labelLarge?.copyWith(
-                      color: statusColor,
-                      fontWeight: FontWeight.w800,
+                    _formatDate(date.scheduledAt),
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface.withOpacity(0.85),
                     ),
                   ),
                 ),
-                if (!isCreator && creatorName != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: cs.surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      "Invitación de $creatorName",
-                      style: textTheme.labelSmall?.copyWith(
-                        color: cs.onSurface.withOpacity(0.7),
-                        fontWeight: FontWeight.w600,
+              ],
+            ),
+
+            // Pendiente y yo soy receptor: mostrar botones
+            if (date.isPending && !isCreator) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: onConfirm,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text(
+                        "Aceptar",
+                        style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
-              ],
-            ),
-          ),
-
-          // Contenido
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Título con icono
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: cs.primary.withOpacity(0.15),
-                        shape: BoxShape.circle,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: onReject,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: Icon(
-                        Icons.favorite_rounded,
-                        color: cs.primary,
-                        size: 24,
+                      child: const Text(
+                        "Rechazar",
+                        style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Propuesta de cita",
-                            style: textTheme.labelMedium?.copyWith(
-                              color: cs.onSurface.withOpacity(0.6),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            date.title,
-                            style: textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: cs.onSurface,
-                            ),
-                          ),
-                        ],
+                  ),
+                ],
+              ),
+            ],
+
+            // Pendiente y yo soy creador
+            if (date.isPending && isCreator)
+              Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.hourglass_top_rounded,
+                      size: 18,
+                      color: Colors.orange.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Esperando respuesta...",
+                      style: textTheme.bodyMedium?.copyWith(
+                        fontStyle: FontStyle.italic,
+                        color: Colors.orange.shade700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
+              ),
 
-                const SizedBox(height: 16),
-
-                // Descripción
-                if (date.description.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceVariant.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(12),
+            // Confirmada
+            if (date.isConfirmed)
+              Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.favorite_rounded,
+                      size: 18,
+                      color: Colors.green.shade700,
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.notes_rounded,
-                          size: 18,
-                          color: cs.onSurface.withOpacity(0.5),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "Esta cita ya forma parte de su historia ✨",
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.w600,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            date.description,
-                            style: textTheme.bodyMedium?.copyWith(
-                              color: cs.onSurface.withOpacity(0.8),
-                              height: 1.4,
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // Fecha y hora
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cs.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: cs.outline.withOpacity(0.2)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.calendar_today_rounded,
-                              size: 18,
-                              color: cs.primary,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              dateLabel,
-                              style: textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        width: 1,
-                        height: 20,
-                        color: cs.outline.withOpacity(0.3),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.access_time_rounded,
-                              size: 18,
-                              color: cs.primary,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              timeLabel,
-                              style: textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
+              ),
 
-                // Botones de acción (solo si está pendiente y NO eres el creador)
-                if (date.isPending && !isCreator) ...[
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: onConfirm,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          icon: const Icon(Icons.check_rounded, size: 20),
-                          label: const Text(
-                            "Aceptar",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                            ),
-                          ),
+            // Rechazada
+            if (date.isRejected)
+              Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 18,
+                      color: Colors.red.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "La propuesta no fue aceptada.",
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: Colors.red.shade700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: onReject,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red,
-                            side: const BorderSide(color: Colors.red),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          icon: const Icon(Icons.close_rounded, size: 20),
-                          label: const Text(
-                            "Rechazar",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                            ),
-                          ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Completada
+            if (date.isCompleted)
+              Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.emoji_events_rounded,
+                      size: 18,
+                      color: Colors.blueGrey.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "Cita completada. Un nuevo recuerdo fue creado 🌍",
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: Colors.blueGrey.shade700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ],
-                  ),
-                ],
-
-                // Mensaje si eres el creador y está pendiente
-                if (date.isPending && isCreator) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.hourglass_empty_rounded,
-                          size: 18,
-                          color: Colors.orange.shade700,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            "Esperando respuesta...",
-                            style: textTheme.bodySmall?.copyWith(
-                              color: Colors.orange.shade700,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

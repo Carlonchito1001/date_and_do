@@ -107,8 +107,7 @@ class _DdDiscoverState extends State<DdDiscover>
       final result = await ApiService().sugerenciasMatch(
         accessToken: token,
         maxDistanceKm: maxDistance,
-        ageMin: ageMin,
-        ageMax: ageMax,
+
       );
 
       if (!mounted) return;

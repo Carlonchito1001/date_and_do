@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:date_and_doing/models/dd_date.dart';
 
 import 'package:date_and_doing/api/api_service.dart';
 
@@ -9,6 +10,7 @@ import 'widgets/island_level_node.dart';
 import 'widgets/sea_waves_painter.dart';
 import 'widgets/world_path_painter.dart';
 import 'widgets/cloud_widget.dart';
+import 'package:date_and_doing/views/history/history_date_mapper.dart';
 
 /// ✅ Tema de fondo del History World
 class HistoryBgTheme {
@@ -125,25 +127,11 @@ class _HistoryLevelsPageState extends State<HistoryLevelsPage>
     });
 
     try {
-      final all = await _api.allDates();
+      final dates = await _api.getHistoryWorldDates(widget.matchId);
 
-      // ✅ todas las citas del match actual (sin filtrar por status)
-      final mine = all.where((d) => d["ddm_int_id"] == widget.matchId).toList();
-
-      // orden por fecha
-      mine.sort((a, b) {
-        final da =
-            DateTime.tryParse(a["ddd_timestamp_date"]?.toString() ?? "") ??
-            DateTime(1900);
-        final db =
-            DateTime.tryParse(b["ddd_timestamp_date"]?.toString() ?? "") ??
-            DateTime(1900);
-        return da.compareTo(db);
-      });
-
-      final levels = mine.isEmpty
+      final levels = dates.isEmpty
           ? _defaultLockedWorld()
-          : _mapDatesToWorldLevels(mine);
+          : HistoryDateMapper.toWorldLevels(dates);
 
       if (!mounted) return;
       setState(() {
@@ -161,9 +149,11 @@ class _HistoryLevelsPageState extends State<HistoryLevelsPage>
   }
 
   List<WorldLevel> _defaultLockedWorld() {
-    return const [
+    return [
       WorldLevel(
+        id: "locked_1",
         title: "Crea tu primera cita",
+        subtitle: "Tu historia comenzará aquí",
         date: "Próximamente",
         icon: Icons.lock_rounded,
         status: WorldLevelStatus.locked,
@@ -171,94 +161,6 @@ class _HistoryLevelsPageState extends State<HistoryLevelsPage>
       ),
     ];
   }
-
-  List<WorldLevel> _mapDatesToWorldLevels(List<Map<String, dynamic>> dates) {
-    final now = DateTime.now();
-    final positions = _generatePositions(dates.length);
-
-    // primera futura => current
-    int currentIndex = -1;
-    for (int i = 0; i < dates.length; i++) {
-      final dt = DateTime.tryParse(
-        dates[i]["ddd_timestamp_date"]?.toString() ?? "",
-      );
-      if (dt != null && dt.isAfter(now)) {
-        currentIndex = i;
-        break;
-      }
-    }
-    // si no hay futuras, la última es current
-    if (currentIndex == -1 && dates.isNotEmpty) currentIndex = dates.length - 1;
-
-    return List.generate(dates.length, (i) {
-      final d = dates[i];
-
-      final title = (d["ddd_txt_title"] ?? "Cita").toString();
-      final dt = DateTime.tryParse(d["ddd_timestamp_date"]?.toString() ?? "");
-      final dateLabel = dt == null ? "Sin fecha" : _fmtDate(dt);
-
-      // ✅ status del mundo por FECHA (no por ddd_txt_status)
-      WorldLevelStatus status;
-      if (dt == null) {
-        status = WorldLevelStatus.locked;
-      } else if (dt.isBefore(now)) {
-        status = WorldLevelStatus.done;
-      } else if (i == currentIndex) {
-        status = WorldLevelStatus.current;
-      } else {
-        status = WorldLevelStatus.locked;
-      }
-
-      return WorldLevel(
-        title: title,
-        date: dateLabel,
-        icon: _iconFromTitle(title),
-        status: status,
-        position: positions[i],
-      );
-    });
-  }
-
-  // posiciones dinámicas (zigzag diagonal)
-  List<Offset> _generatePositions(int n) {
-    if (n <= 1) return const [Offset(0.50, 0.55)];
-
-    final List<Offset> out = [];
-    for (int i = 0; i < n; i++) {
-      final t = i / (n - 1); // 0..1
-      final x = 0.15 + 0.70 * t;
-
-      final baseY = 0.70 - 0.45 * t;
-      final wiggle = (i % 2 == 0) ? 0.06 : -0.06;
-      final y = (baseY + wiggle).clamp(0.18, 0.78);
-
-      out.add(Offset(x, y));
-    }
-    return out;
-  }
-
-  String _fmtDate(DateTime dt) {
-    final dd = dt.day.toString().padLeft(2, "0");
-    final mm = dt.month.toString().padLeft(2, "0");
-    final yy = dt.year.toString();
-    return "$dd/$mm/$yy";
-  }
-
-  IconData _iconFromTitle(String title) {
-    final t = title.toLowerCase();
-    if (t.contains("café") || t.contains("cafe"))
-      return Icons.local_cafe_rounded;
-    if (t.contains("cine")) return Icons.movie_rounded;
-    if (t.contains("cena")) return Icons.dinner_dining_rounded;
-    if (t.contains("viaje")) return Icons.flight_takeoff_rounded;
-    if (t.contains("picnic")) return Icons.park_rounded;
-    if (t.contains("playa")) return Icons.beach_access_rounded;
-    if (t.contains("museo")) return Icons.museum_rounded;
-    if (t.contains("concierto")) return Icons.music_note_rounded;
-    return Icons.favorite_rounded;
-  }
-
-  // ===== UI =====
 
   void _openThemePicker() {
     final theme = Theme.of(context);
