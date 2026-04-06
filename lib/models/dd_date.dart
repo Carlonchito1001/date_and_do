@@ -68,6 +68,7 @@ class DdDate {
   bool get isConfirmed => statusUpper == "CONFIRMED";
   bool get isRejected => statusUpper == "REJECTED";
   bool get isCompleted => statusUpper == "COMPLETED";
+  bool get isCanceled => statusUpper == "CANCELED";
 
   String get statusUpper => status.toUpperCase();
 }

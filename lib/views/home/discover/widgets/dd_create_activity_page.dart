@@ -260,6 +260,30 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
+
+      final msg = e.toString();
+
+      if (msg.contains("5 días válidos")) {
+        await showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text("Cita aún no disponible"),
+            content: const Text(
+              "Todavía no pueden crear una cita.\n\n"
+              "Para proponer una cita, ambos deben conversar durante al menos 5 días válidos.\n"
+              "Un día válido cuenta solo si los dos enviaron al menos un mensaje ese día.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text("Entendido"),
+              ),
+            ],
+          ),
+        );  
+        return;
+      }
+
       _toast("❌ Error creando cita: $e");
     }
   }

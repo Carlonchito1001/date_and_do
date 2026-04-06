@@ -80,34 +80,23 @@ class _DdDiscoverState extends State<DdDiscover>
     });
 
     final service = SharedPreferencesService();
-
     final token = await service.getAccessToken();
 
     if (token == null) {
       if (!mounted) return;
-
       setState(() {
         loading = false;
         error = 'No hay sesión activa. Inicia sesión nuevamente.';
       });
-
       return;
     }
 
     try {
-      /// DISTANCIA GUARDADA EN APP
       final maxDistance = await service.getMaxDistance();
-
-      /// PREFERENCIAS DEL USUARIO (edad)
-      final prefs = await ApiService().getPreferences(accessToken: token);
-
-      final ageMin = prefs["ddp_int_age_min"] ?? 18;
-      final ageMax = prefs["ddp_int_age_max"] ?? 99;
 
       final result = await ApiService().sugerenciasMatch(
         accessToken: token,
         maxDistanceKm: maxDistance,
-
       );
 
       if (!mounted) return;
@@ -117,6 +106,7 @@ class _DdDiscoverState extends State<DdDiscover>
         loading = false;
       });
     } catch (e) {
+      print("DISCOVER ERROR => $e");
       if (!mounted) return;
 
       setState(() {
@@ -287,50 +277,36 @@ class _DdDiscoverState extends State<DdDiscover>
   }
 
   void _animateOut(String action) {
+    if (sendingSwipe) return;
+    if (users.isEmpty) return;
 
-  if (sendingSwipe) return;
-  if (users.isEmpty) return;
+    _controller.stop();
+    _controller.reset();
 
-  _controller.stop();
-  _controller.reset();
+    final size = MediaQuery.of(context).size;
 
-  final size = MediaQuery.of(context).size;
+    final dx = action == "DISLIKE" ? -(size.width * 1.2) : (size.width * 1.2);
 
-  final dx = action == "DISLIKE"
-      ? -(size.width * 1.2)
-      : (size.width * 1.2);
+    final Offset end = action == "SUPERLIKE"
+        ? Offset(_dragOffset.dx, -(size.height * 1.1))
+        : Offset(dx, _dragOffset.dy);
 
-  final Offset end = action == "SUPERLIKE"
-      ? Offset(_dragOffset.dx, -(size.height * 1.1))
-      : Offset(dx, _dragOffset.dy);
+    final double endRot = action == "DISLIKE" ? -_maxRotation : _maxRotation;
 
-  final double endRot =
-      action == "DISLIKE" ? -_maxRotation : _maxRotation;
+    _posAnim = Tween<Offset>(
+      begin: _dragOffset,
+      end: end,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
 
-  _posAnim = Tween<Offset>(
-    begin: _dragOffset,
-    end: end,
-  ).animate(
-    CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeIn,
-    ),
-  );
+    _rotAnim = Tween<double>(
+      begin: _dragRotation,
+      end: endRot,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
 
-  _rotAnim = Tween<double>(
-    begin: _dragRotation,
-    end: endRot,
-  ).animate(
-    CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeIn,
-    ),
-  );
+    _lastAction = action;
 
-  _lastAction = action;
-
-  _controller.forward();
-}
+    _controller.forward();
+  }
 
   void _onLike() => _animateOut("LIKE");
   void _onDislike() => _animateOut("DISLIKE");

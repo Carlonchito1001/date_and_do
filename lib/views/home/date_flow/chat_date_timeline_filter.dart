@@ -59,4 +59,22 @@ class ChatDateTimelineFilter {
 
     return result;
   }
+
+  static List<DdDate> forChatTimeline(List<DdDate> dates) {
+    final result = dates.where((d) {
+      return d.isPending ||
+          d.isConfirmed ||
+          d.isRejected ||
+          d.isCompleted ||
+          d.isCanceled;
+    }).toList();
+
+    result.sort((a, b) {
+      final da = a.createdAt ?? a.scheduledAt;
+      final db = b.createdAt ?? b.scheduledAt;
+      return da.compareTo(db);
+    });
+
+    return result;
+  }
 }

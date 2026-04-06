@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:date_and_doing/widgets/user_photo_view.dart';
 import 'package:flutter/material.dart';
 import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
@@ -6,6 +7,15 @@ import 'package:date_and_doing/services/multi_chat_websocket_service.dart';
 
 import 'package:date_and_doing/views/home/dd_home.dart';
 import 'dd_chat_page.dart';
+
+const List<Map<String, String>> kReportReasons = [
+  {"value": "SPAM", "label": "Spam"},
+  {"value": "HARASSMENT", "label": "Acoso"},
+  {"value": "FAKE_PROFILE", "label": "Perfil falso"},
+  {"value": "INAPPROPRIATE_CONTENT", "label": "Contenido inapropiado"},
+  {"value": "SCAM", "label": "Estafa"},
+  {"value": "OTHER", "label": "Otro"},
+];
 
 class DdMessages extends StatefulWidget {
   final VoidCallback? onUnreadCountChanged;
@@ -48,6 +58,131 @@ class _DdMessagesState extends State<DdMessages> {
     _myId = await _prefs.getUserIdOrThrow();
     await _loadConversations();
     await _connectSocketsForVisibleConversations();
+  }
+
+  Future<void> _showReportDialog({
+    required int matchId,
+    required String userName,
+  }) async {
+    String selectedReason = "SPAM";
+    final detailsController = TextEditingController();
+    bool isSubmitting = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            return AlertDialog(
+              title: Text("Reportar a $userName"),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Selecciona un motivo"),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: selectedReason,
+                      items: kReportReasons
+                          .map(
+                            (e) => DropdownMenuItem<String>(
+                              value: e["value"],
+                              child: Text(e["label"]!),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: isSubmitting
+                          ? null
+                          : (value) {
+                              if (value == null) return;
+                              setLocalState(() {
+                                selectedReason = value;
+                              });
+                            },
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: detailsController,
+                      enabled: !isSubmitting,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: "Detalles adicionales",
+                        hintText: "Cuéntanos qué pasó",
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text("Cancelar"),
+                ),
+                FilledButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          setLocalState(() {
+                            isSubmitting = true;
+                          });
+
+                          try {
+                            await _api.matchSafetyAction(
+                              matchId: matchId,
+                              action: "report",
+                              reason: selectedReason,
+                              details: detailsController.text.trim(),
+                            );
+
+                            if (!mounted) return;
+
+                            if (Navigator.of(dialogContext).canPop()) {
+                              Navigator.of(dialogContext).pop();
+                            }
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Reporte enviado correctamente"),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+
+                            setLocalState(() {
+                              isSubmitting = false;
+                            });
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("No se pudo reportar: $e"),
+                              ),
+                            );
+                          }
+                        },
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text("Reportar"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    detailsController.dispose();
   }
 
   Future<void> _connectSocketsForVisibleConversations() async {
@@ -131,9 +266,6 @@ class _DdMessagesState extends State<DdMessages> {
     try {
       final myId = _myId ?? await _prefs.getUserIdOrThrow();
 
-      // ⚠️ Esto es pesado: traer TODOS los mensajes.
-      // Ideal: tener endpoint “inbox” en backend (último por match + unread).
-      // Pero por ahora lo dejamos como tu lógica.
       final allMessages = await _api.getAllMessages();
       final allMatches = await _api.getAllMatches();
 
@@ -148,8 +280,10 @@ class _DdMessagesState extends State<DdMessages> {
           matchInfo[matchId] = {
             "otherUserId": _asInt(other["use_int_id"]) ?? 0,
             "nombre": (other["fullname"] ?? "Usuario").toString(),
-            "foto": (other["photo"] ?? "https://via.placeholder.com/150")
-                .toString(),
+            "fotoBase64": other["photo_preview_base64"]?.toString(),
+            "fotoFallbackUrl":
+                (other["photo_fallback_url"] ?? other["photo"] ?? "")
+                    .toString(),
           };
         }
       }
@@ -197,8 +331,8 @@ class _DdMessagesState extends State<DdMessages> {
           "matchId": matchId,
           "otherUserId": otherUserId,
           "nombre": matchInfo[matchId]?["nombre"] ?? "Chat #$matchId",
-          "foto":
-              matchInfo[matchId]?["foto"] ?? "https://via.placeholder.com/150",
+          "fotoBase64": matchInfo[matchId]?["fotoBase64"],
+          "fotoFallbackUrl": matchInfo[matchId]?["fotoFallbackUrl"] ?? "",
           "ultimoMensaje": (last["ddmsg_txt_body"] ?? "").toString(),
           "hora": TimeOfDay.fromDateTime(createdAt).format(context),
           "noLeidos": unread,
@@ -252,7 +386,8 @@ class _DdMessagesState extends State<DdMessages> {
           matchId: c["matchId"],
           otherUserId: c["otherUserId"],
           nombre: c["nombre"],
-          foto: c["foto"],
+          foto: c["fotoFallbackUrl"] ?? "",
+          fotoBase64: c["fotoBase64"],
         ),
       ),
     );
@@ -291,7 +426,17 @@ class _DdMessagesState extends State<DdMessages> {
             return ListTile(
               onTap: () => _openChat(chat),
               leading: CircleAvatar(
-                backgroundImage: NetworkImage(chat["foto"]),
+                backgroundColor: Colors.grey.shade300,
+                child: ClipOval(
+                  child: UserPhotoView(
+                    base64String: chat["fotoBase64"]?.toString(),
+                    fallbackUrl: chat["fotoFallbackUrl"]?.toString(),
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorWidget: const Icon(Icons.person),
+                  ),
+                ),
               ),
               title: Text(chat["nombre"]),
               subtitle: Text(
@@ -299,29 +444,54 @@ class _DdMessagesState extends State<DdMessages> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Text(chat["hora"], style: const TextStyle(fontSize: 11)),
-                  if ((chat["noLeidos"] as int) > 0)
-                    Container(
-                      margin: const EdgeInsets.only(top: 4),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.pinkAccent,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        "${chat["noLeidos"]}",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(chat["hora"], style: const TextStyle(fontSize: 10)),
+                      if ((chat["noLeidos"] as int) > 0)
+                        Container(
+                          margin: const EdgeInsets.only(top: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.pinkAccent,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            "${chat["noLeidos"]}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                            ),
+                          ),
                         ),
+                    ],
+                  ),
+                  PopupMenuButton<String>(
+                    onSelected: (value) async {
+                      if (value == "report") {
+                        await Future.delayed(const Duration(milliseconds: 120));
+                        if (!mounted) return;
+
+                        await _showReportDialog(
+                          matchId: chat["matchId"] as int,
+                          userName: (chat["nombre"] ?? "usuario").toString(),
+                        );
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem<String>(
+                        value: "report",
+                        child: Text("Reportar usuario"),
                       ),
-                    ),
+                    ],
+                  ),
                 ],
               ),
             );

@@ -20,8 +20,22 @@ class DateCard extends StatelessWidget {
     final chip = date.isConfirmed
         ? "CONFIRMADA ✅"
         : date.isRejected
-            ? "RECHAZADA ❌"
-            : "ACTIVO ⏳";
+        ? "RECHAZADA ❌"
+        : date.isCanceled
+        ? "CANCELADA 🚫"
+        : date.isCompleted
+        ? "COMPLETADA 🎉"
+        : "ACTIVO ⏳";
+
+    final chipBgColor = date.isConfirmed
+        ? Colors.green.withOpacity(0.14)
+        : date.isRejected
+        ? Colors.red.withOpacity(0.14)
+        : date.isCanceled
+        ? Colors.orange.withOpacity(0.16)
+        : date.isCompleted
+        ? Colors.blue.withOpacity(0.14)
+        : cs.primary.withOpacity(0.12);
 
     final dt = date.scheduledAt;
     final dateLabel =
@@ -51,9 +65,12 @@ class DateCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: cs.primary.withOpacity(0.12),
+                  color: chipBgColor,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -83,7 +100,6 @@ class DateCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-
           if (date.isPending) ...[
             const SizedBox(height: 12),
             Row(

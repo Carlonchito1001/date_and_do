@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:date_and_doing/models/dd_date.dart';
 import 'package:date_and_doing/views/home/date_flow/chat_timeline_api_item.dart';
+import 'package:date_and_doing/views/onboarding/onboarding_photo_model.dart';
+import 'package:date_and_doing/views/onboarding/onboarding_profile_model.dart';
 import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:date_and_doing/api/api_endpoints.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:date_and_doing/views/home/matches/match_profile_model.dart';
 
 class ApiService {
   final SharedPreferencesService _prefs = SharedPreferencesService();
@@ -301,27 +305,49 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> sugerenciasMatch({
     required String accessToken,
-    required int maxDistanceKm,
-    int limit = 50,
+    int? maxDistanceKm,
   }) async {
+    final radiusKm = maxDistanceKm ?? 50;
+
+    final endpoint = ApiEndpoints.sugerenciasMatch(radiusKm);
+
+    print("=== SUGERENCIAS MATCH ===");
+    print("ENDPOINT: $endpoint");
+    print("maxDistanceKm: $radiusKm");
+
     final response = await _requestWithRefresh((token) {
       return http.get(
-        Uri.parse(ApiEndpoints.sugerenciasMatch(maxDistanceKm, limit: limit)),
+        Uri.parse(endpoint),
         headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
         },
       );
     });
 
+    print("SUGERENCIAS STATUS: ${response.statusCode}");
+    print("SUGERENCIAS BODY: ${response.body}");
+
     if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body);
-      return data.cast<Map<String, dynamic>>();
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is List) {
+        return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+
+      if (decoded is Map<String, dynamic> && decoded["results"] is List) {
+        return (decoded["results"] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+
+      throw Exception("Formato inesperado en sugerenciasMatch");
     }
 
     throw Exception(
-      'Failed to get suggestions: ${response.statusCode} - ${response.body}',
+      "Error cargando sugerencias: ${response.statusCode} - ${response.body}",
     );
   }
 
@@ -884,19 +910,25 @@ class ApiService {
   Future<Map<String, dynamic>> getPreferences({
     required String accessToken,
   }) async {
-    final response = await http.get(
-      Uri.parse(ApiEndpoints.preferences),
-      headers: {
-        "Authorization": "Bearer $accessToken",
-        "Content-Type": "application/json",
-      },
-    );
+    final response = await _requestWithRefresh((token) {
+      return http.get(
+        Uri.parse(ApiEndpoints.preferences),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
+        },
+      );
+    });
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      return jsonDecode(response.body) as Map<String, dynamic>;
     }
 
-    throw Exception("Error obteniendo preferencias");
+    throw Exception(
+      "Error obteniendo preferencias: ${response.statusCode} - ${response.body}",
+    );
   }
 
   Future<void> updatePreferences({
@@ -911,17 +943,23 @@ class ApiService {
     if (ageMin != null) body["ddp_int_age_min"] = ageMin;
     if (ageMax != null) body["ddp_int_age_max"] = ageMax;
 
-    final response = await http.patch(
-      Uri.parse(ApiEndpoints.preferences),
-      headers: {
-        "Authorization": "Bearer $accessToken",
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode(body),
-    );
+    final response = await _requestWithRefresh((token) {
+      return http.patch(
+        Uri.parse(ApiEndpoints.preferences),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
+        },
+        body: jsonEncode(body),
+      );
+    });
 
     if (response.statusCode != 200) {
-      throw Exception("Error actualizando preferencias");
+      throw Exception(
+        "Error actualizando preferencias: ${response.statusCode} - ${response.body}",
+      );
     }
   }
 
@@ -978,32 +1016,413 @@ class ApiService {
     );
   }
 
-
   Future<List<ChatTimelineApiItem>> getMatchTimeline(int matchId) async {
-  final response = await _requestWithRefresh((token) {
-    return http.get(
-      Uri.parse(ApiEndpoints.matchTimeline(matchId)),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Service-Code': 'dateanddo',
-        'Authorization': 'Bearer $token',
-      },
-    );
-  });
+    final response = await _requestWithRefresh((token) {
+      return http.get(
+        Uri.parse(ApiEndpoints.matchTimeline(matchId)),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Service-Code': 'dateanddo',
+          'Authorization': 'Bearer $token',
+        },
+      );
+    });
 
-  if (response.statusCode == 200) {
-    final List<dynamic> raw = jsonDecode(response.body);
-    return raw
-        .cast<Map<String, dynamic>>()
-        .map((j) => ChatTimelineApiItem.fromJson(j))
-        .toList();
+    if (response.statusCode == 200) {
+      final List<dynamic> raw = jsonDecode(response.body);
+      return raw
+          .cast<Map<String, dynamic>>()
+          .map((j) => ChatTimelineApiItem.fromJson(j))
+          .toList();
+    }
+
+    throw Exception(
+      'Failed to get timeline: ${response.statusCode} - ${response.body}',
+    );
   }
 
-  throw Exception(
-    'Failed to get timeline: ${response.statusCode} - ${response.body}',
-  );
-}
+  Future<Map<String, dynamic>> cancelDate(int dateId) async {
+    final response = await _requestWithRefresh((token) {
+      return http.post(
+        Uri.parse(ApiEndpoints.cancelDate(dateId)),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({}),
+      );
+    });
 
-  
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception(
+      "Failed to cancel date: ${response.statusCode} - ${response.body}",
+    );
+  }
+
+  Future<Map<String, dynamic>> rescheduleDate({
+    required int dateId,
+    required Map<String, dynamic> data,
+  }) async {
+    final response = await _requestWithRefresh((token) {
+      return http.post(
+        Uri.parse(ApiEndpoints.rescheduleDate(dateId)),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode(data),
+      );
+    });
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception(
+      "Failed to reschedule date: ${response.statusCode} - ${response.body}",
+    );
+  }
+
+  Future<OnboardingProfileModel> getOnboardingProfile() async {
+    final response = await _requestWithRefresh((token) {
+      return http.get(
+        Uri.parse(ApiEndpoints.onboardingProfile),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Service-Code': 'dateanddo',
+          'Authorization': 'Bearer $token',
+        },
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return OnboardingProfileModel.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    }
+
+    throw Exception(
+      'Failed to get onboarding profile: ${response.statusCode} - ${response.body}',
+    );
+  }
+
+  Future<OnboardingProfileModel> patchOnboardingProfile({
+    required Map<String, dynamic> data,
+  }) async {
+    final response = await _requestWithRefresh((token) {
+      return http.patch(
+        Uri.parse(ApiEndpoints.onboardingProfile),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(data),
+      );
+    });
+
+    print('::::::::::::::::::::::::::::::::::::::::::');
+    print(data);
+
+    if (response.statusCode == 200) {
+      return OnboardingProfileModel.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    }
+
+    throw Exception(
+      'Failed to patch onboarding profile: ${response.statusCode} - ${response.body}',
+    );
+  }
+
+  Future<List<OnboardingPhotoModel>> getUserPhotos() async {
+    final response = await _requestWithRefresh((token) {
+      return http.get(
+        Uri.parse(ApiEndpoints.userPhotos),
+        headers: {
+          'Accept': 'application/json',
+          'X-Service-Code': 'dateanddo',
+          'Authorization': 'Bearer $token',
+        },
+      );
+    });
+
+    if (response.statusCode == 200) {
+      final List<dynamic> raw = jsonDecode(response.body);
+      return raw
+          .cast<Map<String, dynamic>>()
+          .map((j) => OnboardingPhotoModel.fromJson(j))
+          .toList();
+    }
+
+    throw Exception(
+      'Failed to get user photos: ${response.statusCode} - ${response.body}',
+    );
+  }
+
+  Future<OnboardingPhotoModel> uploadUserPhoto(File imageFile) async {
+    final token = await _getValidAccessToken();
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse(ApiEndpoints.userPhotos),
+    );
+
+    request.headers.addAll({
+      'Accept': 'application/json',
+      'X-Service-Code': 'dateanddo',
+      'Authorization': 'Bearer $token',
+    });
+
+    request.files.add(
+      await http.MultipartFile.fromPath('ddphoto_img_file', imageFile.path),
+    );
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return OnboardingPhotoModel.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    }
+
+    throw Exception(
+      'Failed to upload user photo: ${response.statusCode} - ${response.body}',
+    );
+  }
+
+  Future<OnboardingPhotoModel> makeUserPhotoPrimary(int photoId) async {
+    final response = await _requestWithRefresh((token) {
+      return http.post(
+        Uri.parse("${ApiEndpoints.userPhotos}$photoId/make_primary/"),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Service-Code': 'dateanddo',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({}),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return OnboardingPhotoModel.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    }
+
+    throw Exception(
+      'Failed to make primary photo: ${response.statusCode} - ${response.body}',
+    );
+  }
+
+  Future<void> deleteUserPhoto(int photoId) async {
+    final response = await _requestWithRefresh((token) {
+      return http.delete(
+        Uri.parse("${ApiEndpoints.userPhotos}$photoId/"),
+        headers: {
+          'Accept': 'application/json',
+          'X-Service-Code': 'dateanddo',
+          'Authorization': 'Bearer $token',
+        },
+      );
+    });
+
+    if (response.statusCode == 204 || response.statusCode == 200) {
+      return;
+    }
+
+    throw Exception(
+      'Failed to delete user photo: ${response.statusCode} - ${response.body}',
+    );
+  }
+
+  Future<MatchProfileModel> getMatchProfile(int matchId) async {
+    final response = await _requestWithRefresh((token) {
+      return http.get(
+        Uri.parse(ApiEndpoints.matchProfile(matchId)),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Service-Code': 'dateanddo',
+          'Authorization': 'Bearer $token',
+        },
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return MatchProfileModel.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    }
+
+    throw Exception(
+      'Failed to get match profile: ${response.statusCode} - ${response.body}',
+    );
+  }
+
+  Future<Map<String, dynamic>> matchSafetyAction({
+    required int matchId,
+    required String action,
+    required String reason,
+    String? details,
+    bool blockUser = false,
+  }) async {
+    final response = await _requestWithRefresh((token) {
+      return http.post(
+        Uri.parse("${ApiEndpoints.allMatches}$matchId/safety-action/"),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({
+          "action": action,
+          "reason": reason,
+          "details": details ?? "",
+          "block_user": blockUser,
+        }),
+      );
+    });
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception(
+      "Failed to process safety action: ${response.statusCode} - ${response.body}",
+    );
+  }
+
+  Future<Map<String, dynamic>> getUserSettings() async {
+    final response = await _requestWithRefresh((token) {
+      return http.get(
+        Uri.parse(ApiEndpoints.ddUserSettings),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
+          "Authorization": "Bearer $token",
+        },
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception(
+      "Failed to load user settings: ${response.statusCode} - ${response.body}",
+    );
+  }
+
+  Future<Map<String, dynamic>> updateUserSettings({
+    bool? notifMatches,
+    bool? notifMessages,
+    bool? notifActivities,
+    bool? notifMarketing,
+    bool? sounds,
+    String? language,
+  }) async {
+    final Map<String, dynamic> body = {};
+
+    if (notifMatches != null) {
+      body["dds_bool_notif_matches"] = notifMatches;
+    }
+    if (notifMessages != null) {
+      body["dds_bool_notif_messages"] = notifMessages;
+    }
+    if (notifActivities != null) {
+      body["dds_bool_notif_activities"] = notifActivities;
+    }
+    if (notifMarketing != null) {
+      body["dds_bool_notif_marketing"] = notifMarketing;
+    }
+    if (sounds != null) {
+      body["dds_bool_sounds"] = sounds;
+    }
+    if (language != null) {
+      body["dds_txt_language"] = language;
+    }
+
+    final response = await _requestWithRefresh((token) {
+      return http.patch(
+        Uri.parse(ApiEndpoints.ddUserSettings),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode(body),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception(
+      "Failed to update user settings: ${response.statusCode} - ${response.body}",
+    );
+  }
+
+  Future<Map<String, dynamic>> getTermsStatus() async {
+    final response = await _requestWithRefresh((token) {
+      return http.get(
+        Uri.parse(ApiEndpoints.ddTerms),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
+          "Authorization": "Bearer $token",
+        },
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception(
+      "Failed to load terms status: ${response.statusCode} - ${response.body}",
+    );
+  }
+
+  Future<Map<String, dynamic>> acceptTerms({String version = "v1"}) async {
+    final response = await _requestWithRefresh((token) {
+      return http.patch(
+        Uri.parse(ApiEndpoints.ddTerms),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Service-Code": "dateanddo",
+          "Authorization": "Bearer $token",
+        },
+        body: jsonEncode({
+          "accepted_terms": true,
+          "accepted_terms_version": version,
+        }),
+      );
+    });
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception(
+      "Failed to accept terms: ${response.statusCode} - ${response.body}",
+    );
+  }
 }

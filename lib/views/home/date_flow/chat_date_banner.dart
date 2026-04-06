@@ -16,6 +16,7 @@ class ChatDateBanner extends StatelessWidget {
   Color _bannerColor() {
     if (date.isConfirmed) return Colors.green;
     if (date.isRejected) return Colors.red;
+    if (date.isCanceled) return Colors.orange;
     if (date.isCompleted) return Colors.blueGrey;
     return Colors.orange;
   }
@@ -23,6 +24,7 @@ class ChatDateBanner extends StatelessWidget {
   IconData _bannerIcon() {
     if (date.isConfirmed) return Icons.event_available_rounded;
     if (date.isRejected) return Icons.event_busy_rounded;
+    if (date.isCanceled) return Icons.cancel_rounded;
     if (date.isCompleted) return Icons.emoji_events_rounded;
     return Icons.schedule_rounded;
   }
@@ -30,20 +32,15 @@ class ChatDateBanner extends StatelessWidget {
   String _title() {
     if (date.isConfirmed) return "Próxima cita";
     if (date.isRejected) return "Cita rechazada";
+    if (date.isCanceled) return "Cita cancelada";
     if (date.isCompleted) return "Recuerdo completado";
-    return isCreator
-        ? "Esperando respuesta"
-        : "Tienes una propuesta pendiente";
+    return isCreator ? "Esperando respuesta" : "Tienes una propuesta pendiente";
   }
 
   String _subtitle() {
     final formattedDate = _formatDate(date.scheduledAt);
 
-    if (date.isCompleted) {
-      return "${date.title} • $formattedDate";
-    }
-
-    if (date.isRejected) {
+    if (date.isRejected || date.isCanceled) {
       return date.title;
     }
 
@@ -75,10 +72,7 @@ class ChatDateBanner extends StatelessWidget {
             decoration: BoxDecoration(
               color: color.withOpacity(0.12),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: color.withOpacity(0.35),
-                width: 1.2,
-              ),
+              border: Border.all(color: color.withOpacity(0.35), width: 1.2),
             ),
             child: Row(
               children: [
@@ -89,11 +83,7 @@ class ChatDateBanner extends StatelessWidget {
                     color: color.withOpacity(0.18),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    _bannerIcon(),
-                    color: color,
-                    size: 20,
-                  ),
+                  child: Icon(_bannerIcon(), color: color, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

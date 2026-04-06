@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "266630102584-t5a2bs4alfa0hmfkanm7ekk00pu7ueke.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.finatech.date_and_doing",
+            "certificate_hash": "b1d94bda46478bfe58a35fc31aeba595a20ec60b"
+          }
+        },
+        {
           "client_id": "266630102584-vpt1ojpjpa1jiplg38s7pim4f8ndb72l.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

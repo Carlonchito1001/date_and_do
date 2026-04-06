@@ -5,6 +5,9 @@ class ChatDateCard extends StatelessWidget {
   final DdDate date;
   final VoidCallback? onConfirm;
   final VoidCallback? onReject;
+  final VoidCallback? onComplete;
+  final VoidCallback? onCancel;
+  final VoidCallback? onReschedule;
   final bool isCreator;
   final String creatorName;
 
@@ -13,6 +16,9 @@ class ChatDateCard extends StatelessWidget {
     required this.date,
     this.onConfirm,
     this.onReject,
+    this.onComplete,
+    this.onCancel,
+    this.onReschedule,
     required this.isCreator,
     required this.creatorName,
   });
@@ -20,6 +26,7 @@ class ChatDateCard extends StatelessWidget {
   Color _statusColor() {
     if (date.isConfirmed) return Colors.green;
     if (date.isRejected) return Colors.red;
+    if (date.isCanceled) return Colors.orange;
     if (date.isCompleted) return Colors.blueGrey;
     return Colors.orange;
   }
@@ -27,6 +34,7 @@ class ChatDateCard extends StatelessWidget {
   IconData _statusIcon() {
     if (date.isConfirmed) return Icons.check_circle_rounded;
     if (date.isRejected) return Icons.cancel_rounded;
+    if (date.isCanceled) return Icons.block_rounded;
     if (date.isCompleted) return Icons.emoji_events_rounded;
     return Icons.schedule_rounded;
   }
@@ -34,6 +42,7 @@ class ChatDateCard extends StatelessWidget {
   String _statusText() {
     if (date.isConfirmed) return "Cita confirmada";
     if (date.isRejected) return "Cita rechazada";
+    if (date.isCanceled) return "Cita cancelada";
     if (date.isCompleted) return "Cita completada";
     return "Cita pendiente";
   }
@@ -59,16 +68,10 @@ class ChatDateCard extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            statusColor.withOpacity(0.10),
-            cs.surface,
-          ],
+          colors: [statusColor.withOpacity(0.10), cs.surface],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: statusColor.withOpacity(0.35),
-          width: 1.4,
-        ),
+        border: Border.all(color: statusColor.withOpacity(0.35), width: 1.4),
         boxShadow: [
           BoxShadow(
             color: statusColor.withOpacity(0.10),
@@ -85,11 +88,7 @@ class ChatDateCard extends StatelessWidget {
             // Estado
             Row(
               children: [
-                Icon(
-                  _statusIcon(),
-                  color: statusColor,
-                  size: 20,
-                ),
+                Icon(_statusIcon(), color: statusColor, size: 20),
                 const SizedBox(width: 8),
                 Text(
                   _statusText(),
@@ -142,11 +141,7 @@ class ChatDateCard extends StatelessWidget {
             // Fecha
             Row(
               children: [
-                Icon(
-                  Icons.calendar_today_rounded,
-                  size: 16,
-                  color: cs.primary,
-                ),
+                Icon(Icons.calendar_today_rounded, size: 16, color: cs.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -255,6 +250,79 @@ class ChatDateCard extends StatelessWidget {
                 ),
               ),
 
+            if (date.isConfirmed && onComplete != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: onComplete,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueGrey,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    icon: const Icon(Icons.emoji_events_rounded, size: 18),
+                    label: const Text(
+                      "Marcar como realizada",
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ),
+
+            if ((date.isPending || date.isConfirmed) &&
+                (onCancel != null || onReschedule != null))
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Row(
+                  children: [
+                    if (onCancel != null)
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: onCancel,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: const BorderSide(color: Colors.red),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text(
+                            "Cancelar",
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    if (onCancel != null && onReschedule != null)
+                      const SizedBox(width: 10),
+                    if (onReschedule != null)
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: onReschedule,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.blueGrey,
+                            side: const BorderSide(color: Colors.blueGrey),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text(
+                            "Reprogramar",
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
             // Rechazada
             if (date.isRejected)
               Padding(
@@ -272,6 +340,31 @@ class ChatDateCard extends StatelessWidget {
                         "La propuesta no fue aceptada.",
                         style: textTheme.bodyMedium?.copyWith(
                           color: Colors.red.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Cancelada
+            if (date.isCanceled)
+              Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 18,
+                      color: Colors.orange.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "La cita fue cancelada.",
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: Colors.orange.shade700,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

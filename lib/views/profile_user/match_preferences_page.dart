@@ -14,11 +14,57 @@ class _MatchPreferencesPageState extends State<MatchPreferencesPage> {
   double _minAge = 18;
   double _maxAge = 35;
   String _lookingFor = "relacion";
+  double _maxDistanceKm = 50;
 
   bool _saving = false;
 
   final _api = ApiService();
   final _sp = SharedPreferencesService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final token = await _sp.getAccessToken();
+      if (token == null || token.isEmpty) return;
+
+      final prefs = await _api.getPreferences(accessToken: token);
+
+      if (!mounted) return;
+
+      setState(() {
+        _maxDistanceKm =
+            (((prefs["ddp_int_radius_km"] ?? 50) as num).toDouble().clamp(
+              5.0,
+              100.0,
+            )).toDouble();
+
+        final double loadedMinAge =
+            (((prefs["ddp_int_age_min"] ?? 18) as num).toDouble().clamp(
+              18.0,
+              80.0,
+            )).toDouble();
+
+        final double loadedMaxAge =
+            (((prefs["ddp_int_age_max"] ?? 35) as num).toDouble().clamp(
+              18.0,
+              80.0,
+            )).toDouble();
+
+        _minAge = loadedMinAge <= loadedMaxAge ? loadedMinAge : loadedMaxAge;
+        _maxAge = loadedMaxAge >= _minAge ? loadedMaxAge : _minAge;
+
+        _targetGender = (prefs["ddp_txt_target_gender"] ?? "todos").toString();
+        _lookingFor = (prefs["ddp_txt_looking_for"] ?? "relacion").toString();
+      });
+    } catch (e) {
+      _toast("No se pudieron cargar las preferencias");
+    }
+  }
 
   Future<void> _savePreferences() async {
     if (_saving) return;
@@ -31,7 +77,19 @@ class _MatchPreferencesPageState extends State<MatchPreferencesPage> {
     setState(() => _saving = true);
 
     try {
+      final token = await _sp.getAccessToken();
+      if (token == null || token.isEmpty) {
+        throw Exception("No hay sesión activa");
+      }
+
       final userId = await _sp.getUserIdOrThrow();
+
+      await _api.updatePreferences(
+        accessToken: token,
+        radiusKm: _maxDistanceKm.toInt(),
+        ageMin: _minAge.toInt(),
+        ageMax: _maxAge.toInt(),
+      );
 
       await _api.updateMatchPreferences(
         userId: userId,
@@ -40,6 +98,8 @@ class _MatchPreferencesPageState extends State<MatchPreferencesPage> {
         maxAge: _maxAge.toInt(),
         lookingFor: _lookingFor,
       );
+
+      await _sp.saveMaxDistance(_maxDistanceKm.toInt());
 
       if (!mounted) return;
       setState(() => _saving = false);
@@ -120,9 +180,80 @@ class _MatchPreferencesPageState extends State<MatchPreferencesPage> {
                   ),
                 ],
               ),
+
               const SizedBox(height: 20),
               const Divider(height: 1),
               const SizedBox(height: 20),
+
+              _SectionHeader(
+                icon: Icons.location_on_rounded,
+                iconColor: Colors.deepPurple,
+                title: "Distancia máxima",
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "¿Hasta qué distancia quieres ver perfiles?",
+                style: textTheme.bodySmall?.copyWith(
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: cs.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.deepPurple.withOpacity(0.35),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("5 km"),
+                        Text(
+                          "${_maxDistanceKm.toInt()} km",
+                          style: textTheme.titleMedium?.copyWith(
+                            color: Colors.deepPurple,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const Text("100 km"),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Slider(
+                      min: 5,
+                      max: 100,
+                      divisions: 19,
+                      value: _maxDistanceKm,
+                      label: "${_maxDistanceKm.toInt()} km",
+                      onChanged: (v) {
+                        setState(() => _maxDistanceKm = v);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+              const Divider(height: 1),
+              const SizedBox(height: 20),
+
               _SectionHeader(
                 icon: Icons.cake_rounded,
                 iconColor: Colors.teal,
@@ -247,7 +378,9 @@ class _MatchPreferencesPageState extends State<MatchPreferencesPage> {
                   ],
                 ),
               ),
+
               const SizedBox(height: 24),
+
               _SectionHeader(
                 icon: Icons.favorite_border_rounded,
                 iconColor: Colors.green,
@@ -307,7 +440,9 @@ class _MatchPreferencesPageState extends State<MatchPreferencesPage> {
                   ),
                 ],
               ),
+
               const SizedBox(height: 30),
+
               SizedBox(
                 width: double.infinity,
                 height: 52,

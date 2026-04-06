@@ -13,8 +13,8 @@ import 'package:date_and_doing/views/home/discover/widgets/chat_date_card.dart';
 import 'package:date_and_doing/views/home/discover/widgets/dd_create_activity_page.dart';
 import 'package:date_and_doing/widgets/analysis_bottom_sheet.dart';
 import 'package:date_and_doing/widgets/modal_alini_unlocked.dart';
+import 'package:date_and_doing/widgets/user_photo_view.dart';
 import 'package:flutter/material.dart';
-import 'package:date_and_doing/views/home/date_flow/chat_date_permissions.dart';
 import 'package:date_and_doing/views/home/date_flow/chat_date_highlight.dart';
 import 'package:date_and_doing/views/home/date_flow/chat_date_banner.dart';
 import 'package:date_and_doing/views/home/date_flow/chat_date_banner_sheet.dart';
@@ -25,6 +25,12 @@ import 'package:date_and_doing/views/home/date_flow/chat_date_confirmed_modal.da
 import 'package:date_and_doing/views/home/date_flow/chat_system_message_bubble.dart';
 import 'package:date_and_doing/views/home/date_flow/chat_timeline_api_mapper.dart';
 
+import 'package:date_and_doing/views/home/date_flow/chat_date_complete_modal.dart';
+
+import 'package:date_and_doing/views/home/date_flow/chat_date_reschedule_modal.dart';
+import 'package:date_and_doing/views/home/date_flow/chat_date_action_policy.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 enum _ChatMenuAction { refreshDates, historyWorld, ai }
 
 class DdChatPage extends StatefulWidget {
@@ -32,6 +38,7 @@ class DdChatPage extends StatefulWidget {
   final int otherUserId;
   final String nombre;
   final String foto;
+  final String? fotoBase64;
 
   const DdChatPage({
     super.key,
@@ -39,6 +46,7 @@ class DdChatPage extends StatefulWidget {
     required this.otherUserId,
     required this.nombre,
     required this.foto,
+    this.fotoBase64,
   });
 
   @override
@@ -68,14 +76,41 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
 
   bool _analyzing = false;
   bool _shownAliniUnlockedThisSession = false;
+  bool _hideAliniUnlockedPrompt = false;
 
   final AliniStatusService _aliniService = AliniStatusService();
   AliniStatusModel _aliniStatus = AliniStatusModel.empty;
+
+  bool _dateEnabled = false;
+  int _dateChatDaysCount = 0;
+  int _remainingChatDaysForDate = 5;
 
   late final ChatAiService _ai = ChatAiService(
     iaUrl:
         'https://n8n.fintbot.pe/webhook/be664844-a373-4376-888a-170049d6f2d5',
   );
+
+  Future<void> _loadAliniPromptPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    _hideAliniUnlockedPrompt =
+        prefs.getBool('alini_unlocked_dismissed_${widget.matchId}') ?? false;
+  }
+
+  Future<void> _loadDateUnlockStatus() async {
+    try {
+      final profile = await _api.getMatchProfile(widget.matchId);
+
+      if (!mounted) return;
+
+      setState(() {
+        _dateEnabled = profile.dateEnabled;
+        _dateChatDaysCount = profile.chatDaysCount;
+        _remainingChatDaysForDate = profile.remainingChatDaysForDate;
+      });
+    } catch (e) {
+      debugPrint('Error loading date unlock status: $e');
+    }
+  }
 
   final String currentUser = "Juan";
 
@@ -85,12 +120,97 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     _bootstrap();
   }
 
+  Future<void> _cancelDate(DdDate d) async {
+    try {
+      await _api.cancelDate(d.id);
+
+      await ChatDateRefreshHelper.refreshAll(
+        loadDates: _loadDates,
+        loadAliniStatus: _loadAliniStatus,
+      );
+
+      await _loadMessages();
+
+      if (!mounted) return;
+      _showToast("🚫 Cita cancelada", Colors.red);
+    } catch (e) {
+      _showToast("❌ Error cancelando: $e", Colors.red);
+    }
+  }
+
+  Future<void> _rescheduleDate(DdDate d) async {
+    try {
+      final payload = await showChatDateRescheduleModal(context, date: d);
+
+      if (payload == null) return;
+
+      await _api.rescheduleDate(dateId: d.id, data: payload);
+
+      await ChatDateRefreshHelper.refreshAll(
+        loadDates: _loadDates,
+        loadAliniStatus: _loadAliniStatus,
+      );
+
+      await _loadMessages();
+
+      if (!mounted) return;
+      _showToast("🗓️ Cita reprogramada", Colors.blueGrey);
+    } catch (e) {
+      _showToast("❌ Error reprogramando: $e", Colors.red);
+    }
+  }
+
   Future<void> _bootstrap() async {
     await _loadUserId();
+    await _loadAliniPromptPreference();
     await _loadDates();
     await _loadMessages();
     await _loadAliniStatus();
+    await _loadDateUnlockStatus();
     await _initWebSocket();
+  }
+
+  Future<void> _showDateLockedDialog() async {
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Cita aún no disponible"),
+        content: Text(
+          "Para proponer una cita, ambos deben conversar durante al menos 5 días válidos.\n\n"
+          "Un día válido cuenta solo si los dos enviaron al menos un mensaje ese día.\n\n"
+          "Actualmente llevan $_dateChatDaysCount día(s) válido(s).\n"
+          "Les faltan $_remainingChatDaysForDate día(s).",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("Entendido"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openCreateDateGuarded() async {
+    if (!_dateEnabled) {
+      await _showDateLockedDialog();
+      return;
+    }
+
+    final created = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DdCreateActivityPage(
+          matchId: widget.matchId,
+          partnerName: widget.nombre,
+        ),
+      ),
+    );
+
+    if (created == true) {
+      await _loadDates();
+      await _loadDateUnlockStatus();
+    }
   }
 
   Future<void> _loadUserId() async {
@@ -109,16 +229,27 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
         _aliniStatus = nextStatus;
       });
 
-      if (justUnlocked && !_shownAliniUnlockedThisSession) {
+      if (justUnlocked &&
+          !_shownAliniUnlockedThisSession &&
+          !_hideAliniUnlockedPrompt) {
         _shownAliniUnlockedThisSession = true;
 
-        final wantsTry = await showDialog<bool>(
+        final action = await showDialog<String>(
           context: context,
           barrierDismissible: true,
           builder: (_) => ModalAliniUnlocked(partnerName: widget.nombre),
         );
 
-        if (wantsTry == true) {
+        if (action == 'hide_forever' || action == 'hide_forever_try') {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(
+            'alini_unlocked_dismissed_${widget.matchId}',
+            true,
+          );
+          _hideAliniUnlockedPrompt = true;
+        }
+
+        if (action == 'try_now' || action == 'hide_forever_try') {
           _iniciarAliniVideoCall();
         }
       }
@@ -307,12 +438,12 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
   }
 
   List<ChatTimelineItem> get _timelineItems {
-    final relevantDates = ChatDateTimelineFilter.pickRelevant(
-      _dates,
-      _currentUserId,
-    );
+    final datesForTimeline = ChatDateTimelineFilter.forChatTimeline(_dates);
 
-    return ChatTimelineBuilder.build(dates: relevantDates, messages: _messages);
+    return ChatTimelineBuilder.build(
+      dates: datesForTimeline,
+      messages: _messages,
+    );
   }
 
   Future<void> _confirmDate(DdDate d) async {
@@ -352,6 +483,29 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
       _showToast("✅ Cita rechazada", Colors.orange);
     } catch (e) {
       _showToast("❌ Error rechazando: $e", Colors.red);
+    }
+  }
+
+  Future<void> _completeDate(DdDate d) async {
+    try {
+      final allowed = await showChatDateCompleteModal(context, date: d);
+
+      if (!allowed) return;
+
+      await _api.completeDate(d.id);
+
+      await ChatDateRefreshHelper.refreshAll(
+        loadDates: _loadDates,
+        loadAliniStatus: _loadAliniStatus,
+      );
+
+      await _loadMessages();
+
+      if (!mounted) return;
+
+      _showToast("🏁 Cita completada", Colors.blueGrey);
+    } catch (e) {
+      _showToast("❌ Error completando: $e", Colors.red);
     }
   }
 
@@ -468,7 +622,6 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
             }
           }
         }
-
         _loadingMessages = false;
       });
 
@@ -603,8 +756,17 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
                     ),
                     child: CircleAvatar(
                       radius: 20,
-                      backgroundImage: NetworkImage(widget.foto),
-                      onBackgroundImageError: (_, __) {},
+                      backgroundColor: Colors.grey.shade300,
+                      child: ClipOval(
+                        child: UserPhotoView(
+                          base64String: widget.fotoBase64,
+                          fallbackUrl: widget.foto,
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorWidget: const Icon(Icons.person, size: 18),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -642,16 +804,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
                 icon: Icons.date_range_rounded,
                 tooltip: "Crear cita",
                 onPressed: () async {
-                  final created = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => DdCreateActivityPage(
-                        matchId: widget.matchId,
-                        partnerName: widget.nombre,
-                      ),
-                    ),
-                  );
-                  if (created == true) _loadDates();
+                  await _openCreateDateGuarded();
                 },
               ),
               _buildMoreMenu(),
@@ -747,20 +900,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     }
 
     if (_messages.isEmpty && _dates.isEmpty) {
-      return _EmptyChatState(
-        onCreateDate: () async {
-          final created = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => DdCreateActivityPage(
-                matchId: widget.matchId,
-                partnerName: widget.nombre,
-              ),
-            ),
-          );
-          if (created == true) _loadDates();
-        },
-      );
+      return _EmptyChatState(onCreateDate: _openCreateDateGuarded);
     }
 
     return ListView.builder(
@@ -795,17 +935,20 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
 
       case ChatTimelineItemType.dateCard:
         final d = item.date!;
-        final permissions = ChatDatePermissions.fromDate(
+        final policy = ChatDateActionPolicy.fromDate(
           date: d,
           currentUserId: _currentUserId,
         );
 
         return ChatDateCard(
           date: d,
-          onConfirm: permissions.canConfirm ? () => _confirmDate(d) : null,
-          onReject: permissions.canReject ? () => _rejectDate(d) : null,
-          isCreator: permissions.isCreator,
-          creatorName: permissions.isCreator ? "Tú" : widget.nombre,
+          onConfirm: policy.canConfirm ? () => _confirmDate(d) : null,
+          onReject: policy.canReject ? () => _rejectDate(d) : null,
+          onComplete: policy.canComplete ? () => _completeDate(d) : null,
+          onCancel: policy.canCancel ? () => _cancelDate(d) : null,
+          onReschedule: policy.canReschedule ? () => _rescheduleDate(d) : null,
+          isCreator: policy.isCreator,
+          creatorName: policy.isCreator ? "Tú" : widget.nombre,
         );
 
       case ChatTimelineItemType.message:
@@ -827,6 +970,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
           isRead: msg["is_read"] == true,
           senderName: esMio ? null : msg["autor"] as String,
           avatarUrl: esMio ? null : widget.foto,
+          avatarBase64: esMio ? null : widget.fotoBase64,
         );
     }
   }
@@ -992,7 +1136,7 @@ class _MessageBubble extends StatelessWidget {
   final bool isRead;
   final String? senderName;
   final String? avatarUrl;
-
+  final String? avatarBase64;
   const _MessageBubble({
     required this.message,
     required this.time,
@@ -1000,6 +1144,7 @@ class _MessageBubble extends StatelessWidget {
     this.isRead = false,
     this.senderName,
     this.avatarUrl,
+    this.avatarBase64,
   });
 
   @override
@@ -1012,8 +1157,23 @@ class _MessageBubble extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!isMine && avatarUrl != null) ...[
-            CircleAvatar(radius: 16, backgroundImage: NetworkImage(avatarUrl!)),
+          if (!isMine &&
+              ((avatarUrl?.isNotEmpty ?? false) ||
+                  (avatarBase64?.isNotEmpty ?? false))) ...[
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.grey.shade300,
+              child: ClipOval(
+                child: UserPhotoView(
+                  base64String: avatarBase64,
+                  fallbackUrl: avatarUrl,
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.cover,
+                  errorWidget: const Icon(Icons.person, size: 14),
+                ),
+              ),
+            ),
             const SizedBox(width: 8),
           ],
           Flexible(

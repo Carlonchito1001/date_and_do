@@ -1,7 +1,7 @@
-import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
 import 'package:flutter/material.dart';
 import '../../theme/theme_controller.dart';
+import 'package:date_and_doing/api/api_service.dart';
 
 class ConfigProfile extends StatefulWidget {
   const ConfigProfile({super.key});
@@ -12,6 +12,10 @@ class ConfigProfile extends StatefulWidget {
 
 class _ConfigProfileState extends State<ConfigProfile> {
   final SharedPreferencesService _prefs = SharedPreferencesService();
+  final ApiService _api = ApiService();
+
+  bool _loadingRemote = false;
+  bool _savingRemote = false;
 
   // =================== ESTADO ===================
 
@@ -20,20 +24,6 @@ class _ConfigProfileState extends State<ConfigProfile> {
   bool _notifMessages = true;
   bool _notifActivities = true;
   bool _notifMarketing = false;
-
-  // Edad
-  int _ageMin = 18;
-  int _ageMax = 99;
-
-  // Privacidad
-  bool _showOnline = true;
-  bool _showDistance = true;
-  bool _showAge = true;
-  bool _readReceipts = true;
-
-  // Ubicación
-  bool _showLocation = true;
-  double _maxDistanceKm = 50;
 
   // General
   String _language = 'es';
@@ -44,23 +34,73 @@ class _ConfigProfileState extends State<ConfigProfile> {
   void initState() {
     super.initState();
     _loadPreferences();
+    _loadRemoteSettings();
+  }
+
+  Future<void> _loadRemoteSettings() async {
+    try {
+      _loadingRemote = true;
+
+      final data = await _api.getUserSettings();
+
+      _notifMatches = data["dds_bool_notif_matches"] ?? true;
+      _notifMessages = data["dds_bool_notif_messages"] ?? true;
+      _notifActivities = data["dds_bool_notif_activities"] ?? true;
+      _notifMarketing = data["dds_bool_notif_marketing"] ?? false;
+      _sounds = data["dds_bool_sounds"] ?? true;
+      _language = data["dds_txt_language"] ?? "es";
+
+      await _prefs.saveBool("notif_matches", _notifMatches);
+      await _prefs.saveBool("notif_messages", _notifMessages);
+      await _prefs.saveBool("notif_activities", _notifActivities);
+      await _prefs.saveBool("notif_marketing", _notifMarketing);
+      await _prefs.saveBool("sounds", _sounds);
+      await _prefs.saveStringValue("language", _language);
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint("Error cargando settings remotos: $e");
+    } finally {
+      _loadingRemote = false;
+    }
+  }
+
+  Future<void> _updateRemoteSettings({
+    bool? notifMatches,
+    bool? notifMessages,
+    bool? notifActivities,
+    bool? notifMarketing,
+    bool? sounds,
+    String? language,
+  }) async {
+    try {
+      _savingRemote = true;
+
+      await _api.updateUserSettings(
+        notifMatches: notifMatches,
+        notifMessages: notifMessages,
+        notifActivities: notifActivities,
+        notifMarketing: notifMarketing,
+        sounds: sounds,
+        language: language,
+      );
+    } catch (e) {
+      debugPrint("Error actualizando settings remotos: $e");
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No se pudo sincronizar la configuración"),
+        ),
+      );
+    } finally {
+      _savingRemote = false;
+    }
   }
 
   Future<void> _loadPreferences() async {
-    try {
-      final token = await _prefs.getAccessToken();
-
-      if (token != null) {
-        final prefs = await ApiService().getPreferences(accessToken: token);
-
-        _maxDistanceKm = (prefs["ddp_int_radius_km"] ?? 50).toDouble();
-        _ageMin = prefs["ddp_int_age_min"] ?? 18;
-        _ageMax = prefs["ddp_int_age_max"] ?? 99;
-      }
-    } catch (e) {
-      debugPrint("Error cargando preferencias backend: $e");
-    }
-
     _notifMatches = await _prefs.getBool("notif_matches") ?? true;
     _notifMessages = await _prefs.getBool("notif_messages") ?? true;
     _notifActivities = await _prefs.getBool("notif_activities") ?? true;
@@ -80,38 +120,6 @@ class _ConfigProfileState extends State<ConfigProfile> {
     await _prefs.saveBool("notif_marketing", _notifMarketing);
     await _prefs.saveBool("sounds", _sounds);
     await _prefs.saveStringValue("language", _language);
-  }
-
-  Future<void> _saveDistance(double value) async {
-    setState(() {
-      _maxDistanceKm = value;
-    });
-
-    await _prefs.saveMaxDistance(value.toInt());
-
-    final token = await _prefs.getAccessToken();
-    if (token == null) return;
-
-    await ApiService().updatePreferences(
-      accessToken: token,
-      radiusKm: value.toInt(),
-    );
-  }
-
-  Future<void> _saveAgeRange(RangeValues values) async {
-    setState(() {
-      _ageMin = values.start.round();
-      _ageMax = values.end.round();
-    });
-
-    final token = await _prefs.getAccessToken();
-    if (token == null) return;
-
-    await ApiService().updatePreferences(
-      accessToken: token,
-      ageMin: _ageMin,
-      ageMax: _ageMax,
-    );
   }
 
   @override
@@ -146,6 +154,7 @@ class _ConfigProfileState extends State<ConfigProfile> {
                 onChanged: (v) async {
                   setState(() => _notifMatches = v);
                   await _saveNotificationPrefs();
+                  await _updateRemoteSettings(notifMatches: v);
                 },
               ),
               const SizedBox(height: 10),
@@ -158,6 +167,7 @@ class _ConfigProfileState extends State<ConfigProfile> {
                 onChanged: (v) async {
                   setState(() => _notifMessages = v);
                   await _saveNotificationPrefs();
+                  await _updateRemoteSettings(notifMessages: v);
                 },
               ),
               const SizedBox(height: 10),
@@ -170,6 +180,7 @@ class _ConfigProfileState extends State<ConfigProfile> {
                 onChanged: (v) async {
                   setState(() => _notifActivities = v);
                   await _saveNotificationPrefs();
+                  await _updateRemoteSettings(notifActivities: v);
                 },
               ),
               const SizedBox(height: 10),
@@ -182,112 +193,36 @@ class _ConfigProfileState extends State<ConfigProfile> {
                 onChanged: (v) async {
                   setState(() => _notifMarketing = v);
                   await _saveNotificationPrefs();
+                  await _updateRemoteSettings(notifMarketing: v);
                 },
-              ),
-
-              const SizedBox(height: 26),
-
-              const _SectionHeader(icon: Icons.location_on, title: "Ubicación"),
-              const SizedBox(height: 12),
-              _SettingCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Distancia máxima de búsqueda",
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text("5 km"),
-                        Text(
-                          "${_maxDistanceKm.toInt()} km",
-                          style: TextStyle(
-                            color: cs.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Text("100 km"),
-                      ],
-                    ),
-                    Slider(
-                      min: 5,
-                      max: 100,
-                      divisions: 19,
-                      value: _maxDistanceKm,
-                      label: "${_maxDistanceKm.toInt()} km",
-                      onChanged: (v) async {
-                        await _saveDistance(v);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 26),
-
-              const _SectionHeader(icon: Icons.cake, title: "Edad preferida"),
-              const SizedBox(height: 12),
-              _SettingCard(
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "$_ageMin años",
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          "$_ageMax años",
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    RangeSlider(
-                      min: 18,
-                      max: 99,
-                      values: RangeValues(
-                        _ageMin.toDouble(),
-                        _ageMax.toDouble(),
-                      ),
-                      labels: RangeLabels("$_ageMin", "$_ageMax"),
-                      onChanged: (values) async {
-                        await _saveAgeRange(values);
-                      },
-                    ),
-                  ],
-                ),
               ),
 
               const SizedBox(height: 26),
 
               const _SectionHeader(icon: Icons.settings, title: "General"),
               const SizedBox(height: 12),
-              _SettingCard(
-                child: Row(
-                  children: [
-                    const Icon(Icons.language),
-                    const SizedBox(width: 12),
-                    const Text("Idioma"),
-                    const Spacer(),
-                    DropdownButton<String>(
-                      value: _language,
-                      items: const [
-                        DropdownMenuItem(value: 'es', child: Text('Español')),
-                        DropdownMenuItem(value: 'en', child: Text('English')),
-                      ],
-                      onChanged: (v) async {
-                        if (v == null) return;
-                        setState(() => _language = v);
-                        await _saveNotificationPrefs();
-                      },
-                    ),
-                  ],
-                ),
-              ),
+              // _SettingCard(
+              //   child: Row(
+              //     children: [
+              //       const Icon(Icons.language),
+              //       const SizedBox(width: 12),
+              //       const Text("Idioma"),
+              //       const Spacer(),
+              //       DropdownButton<String>(
+              //         value: _language,
+              //         items: const [
+              //           DropdownMenuItem(value: 'es', child: Text('Español')),
+              //           DropdownMenuItem(value: 'en', child: Text('English')),
+              //         ],
+              //         onChanged: (v) async {
+              //           if (v == null) return;
+              //           setState(() => _language = v);
+              //           await _saveNotificationPrefs();
+              //         },
+              //       ),
+              //     ],
+              //   ),
+              // ),
               const SizedBox(height: 10),
               _SettingCard(
                 child: Row(

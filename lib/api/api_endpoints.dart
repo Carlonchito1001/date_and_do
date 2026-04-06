@@ -38,6 +38,12 @@ class ApiEndpoints {
   static String confirmDate(int dateId) => "$dates$dateId/confirm/";
   static String rejectDate(int dateId) => "$dates$dateId/reject/";
   static String completeDate(int dateId) => "$dates$dateId/complete/";
-  static String matchTimeline(int matchId) =>
-    "$allMatches$matchId/timeline/";
+  static String matchTimeline(int matchId) => "$allMatches$matchId/timeline/";
+  static String cancelDate(int dateId) => "$dates$dateId/cancel/";
+  static String rescheduleDate(int dateId) => "$dates$dateId/reschedule/";
+  static String onboardingProfile = "$baseUrl/dateanddo/user/onboarding/";
+  static String userPhotos = "$baseUrl/dateanddo/user/photos/";
+  static String matchProfile(int matchId) => "${allMatches}$matchId/profile/";
+  static String ddUserSettings = "$baseUrl/dateanddo/user/settings/";
+  static String ddTerms = "$baseUrl/dateanddo/user/terms/";
 }

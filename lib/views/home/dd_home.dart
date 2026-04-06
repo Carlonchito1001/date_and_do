@@ -5,7 +5,7 @@ import 'package:date_and_doing/services/shared_preferences_service.dart';
 import 'package:date_and_doing/views/profile_user/home_profile.dart';
 import 'package:flutter/material.dart';
 import 'discover/dd_discover.dart';
-import './dd_matches..dart';
+import 'dd_matches.dart';
 import './dd_messages.dart';
 
 class DdHome extends StatefulWidget {
@@ -177,17 +177,17 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
                 ],
               ),
               centerTitle: false,
-              actions: [
-                // Botón de notificaciones
-                _NotificationButton(
-                  icon: Icons.notifications_outlined,
-                  count: 0,
-                  onTap: () {
-                    // Mostrar notificaciones
-                  },
-                ),
-                const SizedBox(width: 8),
-              ],
+              // actions: [
+              //   // Botón de notificaciones
+              //   _NotificationButton(
+              //     icon: Icons.notifications_outlined,
+              //     count: 0,
+              //     onTap: () {
+              //       // Mostrar notificaciones
+              //     },
+              //   ),
+              //   const SizedBox(width: 8),
+              // ],
             ),
           ),
         ),
@@ -200,7 +200,7 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
           index: _currentIndex,
           children: const [
             DdDiscover(),
-            DdMatches(),
+            DdMatchesPage(),
             DdMessages(),
             HomeProfile(),
           ],
@@ -263,7 +263,7 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
                     label: "Perfil",
                     isSelected: _currentIndex == 3,
                     onTap: () => _onItemTapped(3),
-                    colorScheme: cs,  
+                    colorScheme: cs,
                   ),
                 ],
               ),

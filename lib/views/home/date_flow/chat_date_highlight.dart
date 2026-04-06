@@ -7,7 +7,6 @@ class ChatDateHighlight {
     final sorted = [...dates]
       ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
 
-    // 1) cita pendiente que yo debo responder
     for (final d in sorted) {
       if (d.isPending &&
           currentUserId != null &&
@@ -17,14 +16,20 @@ class ChatDateHighlight {
       }
     }
 
-    // 2) próxima cita confirmada
     for (final d in sorted) {
       if (d.isConfirmed && d.scheduledAt.isAfter(DateTime.now())) {
         return d;
       }
     }
 
-    // 3) cita pendiente que yo propuse
+    for (final d in sorted.reversed) {
+      if (d.isCanceled) return d;
+    }
+
+    for (final d in sorted.reversed) {
+      if (d.isRejected) return d;
+    }
+
     for (final d in sorted) {
       if (d.isPending &&
           currentUserId != null &&
@@ -34,7 +39,6 @@ class ChatDateHighlight {
       }
     }
 
-    // 4) última completada
     final completed = sorted.where((d) => d.isCompleted).toList();
     if (completed.isNotEmpty) {
       return completed.last;

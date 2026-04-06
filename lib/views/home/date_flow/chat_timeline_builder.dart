@@ -11,18 +11,21 @@ class ChatTimelineItem {
   final String? headerTitle;
   final DdDate? date;
   final Map<String, dynamic>? message;
+  final DateTime sortAt;
 
   const ChatTimelineItem._({
     required this.type,
+    required this.sortAt,
     this.headerTitle,
     this.date,
     this.message,
   });
 
-  factory ChatTimelineItem.sectionHeader(String title) {
+  factory ChatTimelineItem.sectionHeader(String title, DateTime sortAt) {
     return ChatTimelineItem._(
       type: ChatTimelineItemType.sectionHeader,
       headerTitle: title,
+      sortAt: sortAt,
     );
   }
 
@@ -30,13 +33,20 @@ class ChatTimelineItem {
     return ChatTimelineItem._(
       type: ChatTimelineItemType.dateCard,
       date: date,
+      sortAt: date.createdAt ?? date.scheduledAt,
     );
   }
 
   factory ChatTimelineItem.message(Map<String, dynamic> message) {
+    final dt = DateTime.tryParse(
+          "${message["fecha"]}T${message["hora"]}:00",
+        ) ??
+        DateTime.now();
+
     return ChatTimelineItem._(
       type: ChatTimelineItemType.message,
       message: message,
+      sortAt: dt,
     );
   }
 }
@@ -46,22 +56,12 @@ class ChatTimelineBuilder {
     required List<DdDate> dates,
     required List<Map<String, dynamic>> messages,
   }) {
-    final items = <ChatTimelineItem>[];
+    final items = <ChatTimelineItem>[
+      ...dates.map(ChatTimelineItem.dateCard),
+      ...messages.map(ChatTimelineItem.message),
+    ];
 
-    if (dates.isNotEmpty) {
-      items.add(ChatTimelineItem.sectionHeader("Próximas citas"));
-      for (final d in dates) {
-        items.add(ChatTimelineItem.dateCard(d));
-      }
-    }
-
-    if (messages.isNotEmpty) {
-      items.add(ChatTimelineItem.sectionHeader("Mensajes"));
-      for (final m in messages) {
-        items.add(ChatTimelineItem.message(m));
-      }
-    }
-
+    items.sort((a, b) => a.sortAt.compareTo(b.sortAt));
     return items;
   }
 }

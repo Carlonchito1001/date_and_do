@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:date_and_doing/auth/google_auth_service.dart';
-import 'package:date_and_doing/views/home/dd_home.dart';
+import 'package:date_and_doing/auth/post_login_gate_page.dart';
 import '../../auth/facebook_auth_service.dart';
 import 'package:date_and_doing/models/dd_user.dart';
 import 'package:date_and_doing/views/login/login_pages/email_login_page.dart';
@@ -22,49 +22,20 @@ class _DdLoginState extends State<DdLogin> {
   final _facebookAuth = FacebookAuthService();
 
   bool _loading = false;
-  bool _aceptaTerminos = false;
-
-  // ---------- HELPERS ----------
-
-  void _mostrarMensajeTerminos() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Debes aceptar los Términos y Condiciones para continuar',
-        ),
-      ),
-    );
-  }
 
   Future<void> _onGoogleTap() async {
-    if (!_aceptaTerminos) {
-      _mostrarMensajeTerminos();
-      return;
-    }
     await _handleGoogle();
   }
 
   Future<void> _onFacebookTap() async {
-    if (!_aceptaTerminos) {
-      _mostrarMensajeTerminos();
-      return;
-    }
     await _handleFacebook();
   }
 
   Future<void> _onPhoneTap() async {
-    if (!_aceptaTerminos) {
-      _mostrarMensajeTerminos();
-      return;
-    }
     await _goToPhone();
   }
 
   Future<void> _onEmailTap() async {
-    if (!_aceptaTerminos) {
-      _mostrarMensajeTerminos();
-      return;
-    }
     await _goToEmail();
   }
 
@@ -87,7 +58,7 @@ class _DdLoginState extends State<DdLogin> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const DdHome()),
+        MaterialPageRoute(builder: (_) => const PostLoginGatePage()),
       );
     } catch (e) {
       print('❌ Error Google: $e');
@@ -102,15 +73,24 @@ class _DdLoginState extends State<DdLogin> {
 
   Future<void> _handleFacebook() async {
     setState(() => _loading = true);
+
     try {
       final DdUser user = await _facebookAuth.signInWithFacebook();
       print('✅ Facebook login OK: $user');
+
+      print('🚀 Iniciando FCM después del login...');
+      await FcmService.initFCM();
+      print('✅ FCM inicializado después del login');
+
+      print('🚀 Enviando token/ubicación al backend...');
+      await SessionBootstrapService().ensureDeviceData();
+      print('✅ Token/ubicación enviados al backend');
 
       if (!mounted) return;
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const DdHome()),
+        MaterialPageRoute(builder: (_) => const PostLoginGatePage()),
       );
     } catch (e) {
       print('❌ Error Facebook: $e');
@@ -131,7 +111,13 @@ class _DdLoginState extends State<DdLogin> {
 
     if (user != null) {
       print('✅ Volvió del login por correo: $user');
-      // TODO: Navegar a tu Home real
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PostLoginGatePage()),
+      );
     }
   }
 
@@ -143,11 +129,15 @@ class _DdLoginState extends State<DdLogin> {
 
     if (user != null) {
       print('✅ Volvió del login por teléfono: $user');
-      // TODO: Navegar a tu Home real
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PostLoginGatePage()),
+      );
     }
   }
-
-  // ---------- TÉRMINOS Y CONDICIONES ----------
 
   void _openTerminos(BuildContext context) {
     showModalBottomSheet(
@@ -157,14 +147,13 @@ class _DdLoginState extends State<DdLogin> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
       isScrollControlled: true,
-      builder: (_) => _TerminosSheet(),
+      builder: (_) => const _TerminosSheet(),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // AppBar flotante
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -182,14 +171,10 @@ class _DdLoginState extends State<DdLogin> {
       ),
       body: Stack(
         children: [
-          // Fondo degradado
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  Color(0xFFE05875), // rose suave
-                  Color(0xFF5B2C83), // purple profundo
-                ],
+                colors: [Color(0xFFE05875), Color(0xFF5B2C83)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -208,7 +193,6 @@ class _DdLoginState extends State<DdLogin> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Avatar / logo
                       Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
@@ -222,7 +206,7 @@ class _DdLoginState extends State<DdLogin> {
                         'Encuentra tu conexión perfecta',
                         style: TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w800,
                           color: Colors.white,
                         ),
                         textAlign: TextAlign.center,
@@ -237,7 +221,6 @@ class _DdLoginState extends State<DdLogin> {
                       ),
                       const SizedBox(height: 24),
 
-                      // Card principal con efecto glass
                       ClipRRect(
                         borderRadius: BorderRadius.circular(26),
                         child: BackdropFilter(
@@ -287,7 +270,6 @@ class _DdLoginState extends State<DdLogin> {
                                 ),
                                 const SizedBox(height: 18),
 
-                                // GOOGLE
                                 _LoginOptionCard(
                                   iconBgColor: const Color(0xFFFFE9E9),
                                   icon: const FaIcon(
@@ -301,7 +283,6 @@ class _DdLoginState extends State<DdLogin> {
                                 ),
                                 const SizedBox(height: 10),
 
-                                // FACEBOOK
                                 // _LoginOptionCard(
                                 //   iconBgColor: const Color(0xFFE7F0FF),
                                 //   icon: const FaIcon(
@@ -315,7 +296,6 @@ class _DdLoginState extends State<DdLogin> {
                                 // ),
                                 // const SizedBox(height: 10),
 
-                                // // TELÉFONO
                                 // _LoginOptionCard(
                                 //   iconBgColor: const Color(0xFFE7FFF1),
                                 //   icon: const FaIcon(
@@ -329,7 +309,6 @@ class _DdLoginState extends State<DdLogin> {
                                 // ),
                                 // const SizedBox(height: 10),
 
-                                // // CORREO
                                 // _LoginOptionCard(
                                 //   iconBgColor: const Color(0xFFEDE7FF),
                                 //   icon: const Icon(
@@ -347,34 +326,19 @@ class _DdLoginState extends State<DdLogin> {
                         ),
                       ),
 
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
 
-                      // Checkbox de Términos
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Checkbox(
-                            value: _aceptaTerminos,
-                            activeColor: Colors.white,
-                            checkColor: const Color(0xFF5B2C83),
-                            onChanged: (v) {
-                              setState(() => _aceptaTerminos = v ?? false);
-                            },
+                      GestureDetector(
+                        onTap: () => _openTerminos(context),
+                        child: Text(
+                          'Al continuar, podrás revisar y aceptar los Términos y Condiciones y la Política de Privacidad.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 11.8,
+                            color: Colors.white.withOpacity(0.88),
+                            decoration: TextDecoration.underline,
                           ),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => _openTerminos(context),
-                              child: Text(
-                                'Acepto los Términos y Condiciones y la Política de Privacidad',
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  color: Colors.white.withOpacity(0.85),
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -391,7 +355,6 @@ class _DdLoginState extends State<DdLogin> {
   }
 }
 
-/// Card para cada opción de inicio de sesión
 class _LoginOptionCard extends StatelessWidget {
   final Widget icon;
   final Color iconBgColor;
@@ -457,19 +420,20 @@ class _LoginOptionCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       subtitle!,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: Colors.grey.shade600,
+                      style: const TextStyle(
+                        fontSize: 12.2,
+                        color: Color(0xFF6B7280),
                       ),
                     ),
                   ],
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: Colors.grey.shade500,
-              size: 22,
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 16,
+              color: Color(0xFF6B7280),
             ),
           ],
         ),
@@ -478,110 +442,69 @@ class _LoginOptionCard extends StatelessWidget {
   }
 }
 
-// ---------- BOTTOM SHEET DE TÉRMINOS ----------
-
 class _TerminosSheet extends StatelessWidget {
   const _TerminosSheet();
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.85,
-      minChildSize: 0.6,
-      maxChildSize: 0.95,
-      builder: (_, controller) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 5,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(20),
+    final media = MediaQuery.of(context);
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 18,
+          bottom: media.viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.black12,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Términos y Condiciones',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 14),
+            const SizedBox(
+              height: 280,
+              child: SingleChildScrollView(
+                child: Text(
+                  'Aquí puedes colocar el contenido real de tus Términos y Condiciones y la Política de Privacidad.\n\n'
+                  'Ejemplo:\n\n'
+                  '1. El usuario acepta usar la plataforma de forma responsable.\n'
+                  '2. No se permite suplantación, fraude, acoso ni contenido inapropiado.\n'
+                  '3. La cuenta podrá ser revisada por motivos de seguridad.\n'
+                  '4. El uso de la app implica aceptar las reglas de convivencia y privacidad.\n'
+                  '5. El incumplimiento de estas reglas puede generar restricciones o suspensión.\n\n'
+                  'Luego reemplazas este texto por tu versión final.',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.5,
+                    color: Color(0xFF374151),
                   ),
                 ),
               ),
-              const Text(
-                "Términos y Condiciones de DATE ❤️ DOING",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Entendido'),
               ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: ListView(
-                  controller: controller,
-                  children: const [
-                    Text(
-                      _terminosTexto,
-                      style: TextStyle(fontSize: 13.5, height: 1.4),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFFFD4E60),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 10),
-                    child: Text(
-                      "Cerrar",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
-
-const String _terminosTexto = """
-Bienvenido a DATE ❤️ DOING. Antes de usar nuestra aplicación, es importante que leas y aceptes los siguientes Términos y Condiciones.
-
-1. ACEPTACIÓN DEL SERVICIO  
-Al crear una cuenta o iniciar sesión en DATE ❤️ DOING, aceptas cumplir estos Términos y la Política de Privacidad. Si no estás de acuerdo, por favor no uses nuestra plataforma.
-
-2. USO ADECUADO  
-La aplicación está destinada exclusivamente a personas mayores de 18 años. Te comprometes a utilizar la plataforma de forma respetuosa, evitando comportamientos ofensivos, engañosos o inapropiados.
-
-3. VERACIDAD DE LA INFORMACIÓN  
-Eres responsable de proporcionar información real y actualizada. DATE ❤️ DOING no se hace responsable por perfiles falsos o datos inexactos proporcionados por otros usuarios.
-
-4. SEGURIDAD Y PRIVACIDAD  
-No compartimos tu información personal sin consentimiento. Puedes revisar cómo tratamos tus datos en nuestra Política de Privacidad.  
-Nunca compartas contraseñas, códigos o datos sensibles dentro de la app.
-
-5. INTERACCIONES ENTRE USUARIOS  
-Las conversaciones, citas o encuentros derivados del uso de DATE ❤️ DOING se realizan bajo tu propia responsabilidad. La empresa no garantiza compatibilidad ni resultados específicos.
-
-6. CONTENIDO PROHIBIDO  
-No está permitido subir o compartir contenido:  
-• Sexual explícito  
-• Violento o discriminatorio  
-• Spam o promociones comerciales  
-• Suplantación de identidad
-
-7. SUSPENSIÓN O ELIMINACIÓN DE CUENTA  
-DATE ❤️ DOING puede suspender o eliminar tu cuenta si incumples estos Términos o si se detecta actividad sospechosa.
-
-8. MODIFICACIONES  
-DATE ❤️ DOING podrá actualizar estos Términos cuando lo considere necesario. Se notificará a los usuarios en caso de cambios importantes. 
-
-Al continuar, declaras haber leído y aceptado estos Términos y Condiciones.
-""";

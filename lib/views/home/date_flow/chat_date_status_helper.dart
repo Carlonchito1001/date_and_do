@@ -4,12 +4,16 @@ class ChatDateStatusHelper {
   static String statusLabel(DdDate date) {
     if (date.isConfirmed) return "¡Confirmada!";
     if (date.isRejected) return "Rechazada";
+    if (date.isCanceled) return "Cancelada";
     if (date.isCompleted) return "Completada";
     return "Pendiente";
   }
 
   static bool shouldAppearInHistory(DdDate date) {
-    return date.isConfirmed || date.isCompleted;
+    return date.isConfirmed ||
+        date.isCompleted ||
+        date.isRejected ||
+        date.isCanceled;
   }
 
   static bool isPendingForReceiver({

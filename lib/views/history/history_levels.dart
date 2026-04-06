@@ -1,16 +1,14 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:date_and_doing/models/dd_date.dart';
-
 import 'package:date_and_doing/api/api_service.dart';
-
 import 'models/world_level.dart';
 import 'widgets/island_level_node.dart';
 import 'widgets/sea_waves_painter.dart';
 import 'widgets/world_path_painter.dart';
 import 'widgets/cloud_widget.dart';
 import 'package:date_and_doing/views/history/history_date_mapper.dart';
+import './history_level_detail_sheet.dart';
 
 /// ✅ Tema de fondo del History World
 class HistoryBgTheme {
@@ -619,7 +617,13 @@ class _HistoryLevelsPageState extends State<HistoryLevelsPage>
         final bounceY = _bounce(phase);
         return Positioned(left: dx - 40, top: dy + bounceY, child: child!);
       },
-      child: IslandLevelNode(level: level, textTheme: textTheme, onTap: () {}),
+      child: IslandLevelNode(
+        level: level,
+        textTheme: textTheme,
+        onTap: () {
+          showHistoryLevelDetailSheet(context, level: level);
+        },
+      ),
     );
   }
 }

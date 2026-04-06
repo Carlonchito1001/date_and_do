@@ -1,11 +1,16 @@
 import 'package:date_and_doing/auth/google_auth_service.dart';
+import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
 import 'package:date_and_doing/views/login/dd_login.dart';
+import 'package:date_and_doing/views/onboarding/onboarding_photo_model.dart';
+import 'package:date_and_doing/views/onboarding/onboarding_photo_page.dart';
+import 'package:date_and_doing/views/onboarding/onboarding_profile_page.dart';
 import 'package:date_and_doing/views/profile_user/config_profile.dart';
-import 'package:date_and_doing/views/profile_user/edit_profile_page.dart';
 import 'package:date_and_doing/views/profile_user/match_preferences_page.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:date_and_doing/widgets/cached_base64_photo.dart';
+// import 'package:date_and_doing/helpers/photo_memory_cache_helper.dart';
 
 class HomeProfile extends StatefulWidget {
   const HomeProfile({super.key});
@@ -14,10 +19,16 @@ class HomeProfile extends StatefulWidget {
   State<HomeProfile> createState() => _HomeProfileState();
 }
 
-class _HomeProfileState extends State<HomeProfile> {
+class _HomeProfileState extends State<HomeProfile>
+    with SingleTickerProviderStateMixin {
+  final ApiService _api = ApiService();
+
   String userName = '';
   String userEmail = '';
   String? avatarUrl;
+
+  List<OnboardingPhotoModel> _photos = [];
+
   bool loading = true;
   bool hasError = false;
   String errorMessage = '';
@@ -31,6 +42,7 @@ class _HomeProfileState extends State<HomeProfile> {
   Future<void> _getInfoUser() async {
     try {
       final userInfo = await SharedPreferencesService().getUserInfo();
+      final photos = await _api.getUserPhotos();
 
       if (!mounted) return;
 
@@ -43,10 +55,23 @@ class _HomeProfileState extends State<HomeProfile> {
         return;
       }
 
+      OnboardingPhotoModel? primaryPhoto;
+      if (photos.isNotEmpty) {
+        try {
+          primaryPhoto = photos.firstWhere((p) => p.isPrimary);
+        } catch (_) {
+          primaryPhoto = photos.first;
+        }
+      }
+
       setState(() {
         userName = userInfo['use_txt_fullname'] ?? '';
         userEmail = userInfo['use_txt_email'] ?? '';
+
         avatarUrl = userInfo['use_txt_avatar'];
+
+        _photos = photos;
+
         hasError = false;
         loading = false;
       });
@@ -66,6 +91,95 @@ class _HomeProfileState extends State<HomeProfile> {
       hasError = false;
     });
     await _getInfoUser();
+  }
+
+  String _getInitials(String value) {
+    final parts = value.trim().split(' ').where((e) => e.isNotEmpty).toList();
+    if (parts.isEmpty) return 'U';
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return (parts.first[0] + parts.last[0]).toUpperCase();
+  }
+
+  Future<void> logout(BuildContext context) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+
+      await GoogleAuthService().signOut();
+
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const DdLogin()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al cerrar sesión: $e')));
+    }
+  }
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    final cs = Theme.of(context).colorScheme;
+
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: cs.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.logout_rounded, color: cs.error),
+              const SizedBox(width: 10),
+              const Text("Cerrar sesión"),
+            ],
+          ),
+          content: Text(
+            "¿Seguro que deseas cerrar sesión? Tendrás que iniciar sesión nuevamente.",
+            style: TextStyle(color: cs.onSurface.withOpacity(0.8)),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              style: TextButton.styleFrom(
+                foregroundColor: cs.onSurface.withOpacity(0.8),
+              ),
+              child: const Text("Cancelar"),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: cs.error,
+                foregroundColor: cs.onError,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: const Text("Sí, cerrar"),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (ok == true) {
+      await logout(context);
+    }
+  }
+
+  void _openPhotoPreview(OnboardingPhotoModel photo) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => _PhotoPreviewPage(photo: photo)),
+    );
   }
 
   @override
@@ -96,43 +210,61 @@ class _HomeProfileState extends State<HomeProfile> {
                 Stack(
                   alignment: Alignment.bottomRight,
                   children: [
-                    CircleAvatar(
-                      radius: 70,
-                      backgroundColor: cs.primary,
-                      backgroundImage:
-                          (avatarUrl != null && avatarUrl!.isNotEmpty)
-                          ? NetworkImage(avatarUrl!)
-                          : null,
-                      child: (avatarUrl == null || avatarUrl!.isEmpty)
-                          ? Text(
-                              _getInitials(userName),
-                              style: textTheme.headlineSmall?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            )
-                          : null,
+                    Builder(
+                      builder: (_) {
+                        OnboardingPhotoModel? primaryPhoto;
+                        if (_photos.isNotEmpty) {
+                          try {
+                            primaryPhoto = _photos.firstWhere(
+                              (p) => p.isPrimary,
+                            );
+                          } catch (_) {
+                            primaryPhoto = _photos.first;
+                          }
+                        }
+
+                        return Container(
+                          width: 140,
+                          height: 140,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: cs.primary,
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: primaryPhoto != null
+                              ? CachedBase64Photo(
+                                  photo: primaryPhoto,
+                                  width: 140,
+                                  height: 140,
+                                  fit: BoxFit.cover,
+                                  borderRadius: BorderRadius.circular(999),
+                                )
+                              : (avatarUrl != null && avatarUrl!.isNotEmpty)
+                              ? Image.network(
+                                  avatarUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Center(
+                                    child: Text(
+                                      _getInitials(userName),
+                                      style: textTheme.headlineSmall?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : Center(
+                                  child: Text(
+                                    _getInitials(userName),
+                                    style: textTheme.headlineSmall?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                        );
+                      },
                     ),
-                    // Positioned(
-                    //   bottom: 4,
-                    //   right: 4,
-                    //   child: InkWell(
-                    //     borderRadius: BorderRadius.circular(20),
-                    //     onTap: () {},
-                    //     child: Container(
-                    //       padding: const EdgeInsets.all(6),
-                    //       decoration: BoxDecoration(
-                    //         shape: BoxShape.circle,
-                    //         color: cs.primary,
-                    //       ),
-                    //       child: Icon(
-                    //         Icons.camera_alt_rounded,
-                    //         size: 18,
-                    //         color: cs.onPrimary,
-                    //       ),
-                    //     ),
-                    //   ),
-                    // ),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -150,20 +282,85 @@ class _HomeProfileState extends State<HomeProfile> {
                     color: cs.onSurface.withOpacity(0.6),
                   ),
                 ),
+                const SizedBox(height: 16),
+
+                if (_photos.isNotEmpty)
+                  SizedBox(
+                    height: 92,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _photos.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (_, i) {
+                        final photo = _photos[i];
+
+                        return GestureDetector(
+                          onTap: () => _openPhotoPreview(photo),
+                          child: Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: Container(
+                                  width: 84,
+                                  height: 84,
+                                  color: Colors.grey.shade300,
+                                  child: CachedBase64Photo(
+                                    photo: photo,
+                                    width: 84,
+                                    height: 84,
+                                    fit: BoxFit.cover,
+                                    borderRadius: BorderRadius.circular(16),
+                                    errorWidget: const Icon(
+                                      Icons.broken_image_rounded,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (photo.isPrimary)
+                                Positioned(
+                                  right: 6,
+                                  top: 6,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green,
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: const Text(
+                                      "Principal",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  )
+                else
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceVariant.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Text(
+                      "Aún no tienes fotos en tu álbum.",
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+
                 const SizedBox(height: 24),
 
-                // _ProfileOptionCard(
-                //   icon: Icons.brush_rounded,
-                //   iconBgGradient: [
-                //     cs.primary.withOpacity(0.18),
-                //     cs.primaryContainer.withOpacity(0.35),
-                //   ],
-                //   iconColor: cs.primary,
-                //   title: "Personalizar Avatar",
-                //   subtitle: "Cambia tu foto de perfil",
-                //   onTap: () {},
-                // ),
-                const SizedBox(height: 12),
                 _ProfileOptionCard(
                   icon: Icons.edit_note_rounded,
                   iconBgGradient: [
@@ -171,62 +368,95 @@ class _HomeProfileState extends State<HomeProfile> {
                     cs.secondaryContainer.withOpacity(0.35),
                   ],
                   iconColor: cs.secondary,
-                  title: "Editar Perfil",
-                  subtitle: "Actualiza tu información personal",
-                  onTap: () {
-                    Navigator.push(
+                  title: "Editar perfil",
+                  subtitle: "Actualiza tus datos personales",
+                  onTap: () async {
+                    await Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => EditProfilePage()),
+                      MaterialPageRoute(
+                        builder: (_) => const OnboardingProfilePage(
+                          isOnboardingFlow: false,
+                        ),
+                      ),
                     );
+                    await _refreshUserData();
                   },
                 ),
                 const SizedBox(height: 12),
+
                 _ProfileOptionCard(
-                  icon: Icons.settings_rounded,
+                  icon: Icons.photo_library_rounded,
                   iconBgGradient: [
-                    Colors.orange.withOpacity(0.18),
-                    Colors.orangeAccent.withOpacity(0.35),
+                    Colors.pink.withOpacity(0.18),
+                    Colors.pinkAccent.withOpacity(0.35),
                   ],
-                  iconColor: Colors.orange,
-                  title: "Configuración",
-                  subtitle: "Ajusta la configuración de tu cuenta",
-                  onTap: () {
-                    Navigator.push(
+                  iconColor: Colors.pink,
+                  title: "Editar fotos",
+                  subtitle: "Administra tu álbum y tu foto principal",
+                  onTap: () async {
+                    await Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => ConfigProfile()),
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const OnboardingPhotosPage(isOnboardingFlow: false),
+                      ),
                     );
+                    await _refreshUserData();
                   },
                 ),
                 const SizedBox(height: 12),
+
                 _ProfileOptionCard(
                   icon: Icons.tune_rounded,
                   iconBgGradient: [
-                    Colors.teal.withOpacity(0.18),
-                    Colors.tealAccent.withOpacity(0.35),
+                    cs.primary.withOpacity(0.18),
+                    cs.primaryContainer.withOpacity(0.35),
                   ],
-                  iconColor: Colors.teal,
-                  title: "Preferencias",
-                  subtitle: "Personaliza tus preferencias de búsqueda",
+                  iconColor: cs.primary,
+                  title: "Preferencias de Match",
+                  subtitle: "Define qué perfiles quieres encontrar",
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => MatchPreferencesPage()),
+                      MaterialPageRoute(
+                        builder: (_) => const MatchPreferencesPage(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                _ProfileOptionCard(
+                  icon: Icons.settings_outlined,
+                  iconBgGradient: [
+                    cs.tertiary.withOpacity(0.18),
+                    cs.tertiaryContainer.withOpacity(0.35),
+                  ],
+                  iconColor: cs.tertiary,
+                  title: "Configuración",
+                  subtitle: "Ajusta tu experiencia en la app",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ConfigProfile()),
                     );
                   },
                 ),
                 const SizedBox(height: 20),
+
                 const Divider(),
                 const SizedBox(height: 20),
+
                 _ProfileOptionCard(
                   icon: Icons.logout_rounded,
                   iconBgGradient: [
-                    Colors.redAccent.withOpacity(0.18),
-                    Colors.red.withOpacity(0.28),
+                    Colors.red.withOpacity(0.18),
+                    Colors.redAccent.withOpacity(0.35),
                   ],
-                  iconColor: Colors.redAccent,
+                  iconColor: Colors.red,
                   title: "Cerrar Sesión",
-                  subtitle: "Salir de tu cuenta",
-                  onTap: () => confirmLogout(context),
+                  subtitle: "Salir de tu cuenta actual",
+                  onTap: () => _confirmLogout(context),
                 ),
               ],
             ),
@@ -235,84 +465,40 @@ class _HomeProfileState extends State<HomeProfile> {
       ),
     );
   }
-
-  String _getInitials(String name) {
-    final clean = name.trim();
-    if (clean.isEmpty) return '?';
-
-    final parts = clean
-        .split(RegExp(r'\s+'))
-        .where((e) => e.isNotEmpty)
-        .toList();
-
-    if (parts.length == 1) {
-      return parts.first.characters.first.toUpperCase();
-    }
-
-    return (parts.first.characters.first + parts.last.characters.first)
-        .toUpperCase();
-  }
 }
 
-Future<void> logout(BuildContext context) async {
-  await GoogleAuthService().signOut();
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.clear();
+class _PhotoPreviewPage extends StatelessWidget {
+  final OnboardingPhotoModel photo;
 
-  Navigator.of(context).pushAndRemoveUntil(
-    MaterialPageRoute(builder: (_) => const DdLogin()),
-    (_) => false,
-  );
-}
+  const _PhotoPreviewPage({required this.photo});
 
-Future<void> confirmLogout(BuildContext context) async {
-  final cs = Theme.of(context).colorScheme;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
 
-  final bool? ok = await showDialog<bool>(
-    context: context,
-    barrierDismissible: true,
-    builder: (ctx) {
-      return AlertDialog(
-        backgroundColor: cs.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Row(
-          children: [
-            Icon(Icons.logout_rounded, color: cs.error),
-            const SizedBox(width: 10),
-            const Text("Cerrar sesión"),
-          ],
-        ),
-        content: Text(
-          "¿Seguro que deseas cerrar sesión? Tendrás que iniciar sesión nuevamente.",
-          style: TextStyle(color: cs.onSurface.withOpacity(0.8)),
-        ),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            style: TextButton.styleFrom(
-              foregroundColor: cs.onSurface.withOpacity(0.8),
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(photo.isPrimary ? "Foto principal" : "Foto"),
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.8,
+          maxScale: 4,
+          child: CachedBase64Photo(
+            photo: photo,
+            fit: BoxFit.contain,
+            errorWidget: Icon(
+              Icons.broken_image_rounded,
+              color: cs.error,
+              size: 64,
             ),
-            child: const Text("Cancelar"),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: cs.error,
-              foregroundColor: cs.onError,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            child: const Text("Sí, cerrar"),
-          ),
-        ],
-      );
-    },
-  );
-
-  if (ok == true) {
-    await logout(context);
+        ),
+      ),
+    );
   }
 }
 
@@ -397,7 +583,53 @@ class _ProfileOptionCard extends StatelessWidget {
   }
 }
 
-// ================== SKELETON LOADER ==================
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      backgroundColor: cs.surface,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline_rounded, size: 64, color: cs.error),
+              const SizedBox(height: 16),
+              Text(
+                "Ups, algo salió mal",
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurface.withOpacity(0.6),
+                ),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text("Reintentar"),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _ProfileSkeleton extends StatefulWidget {
   const _ProfileSkeleton();
@@ -408,21 +640,18 @@ class _ProfileSkeleton extends StatefulWidget {
 
 class _ProfileSkeletonState extends State<_ProfileSkeleton>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
       vsync: this,
+      duration: const Duration(milliseconds: 1300),
     )..repeat();
 
-    _animation = Tween<double>(
-      begin: -1.0,
-      end: 2.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _animation = Tween<double>(begin: -1, end: 2).animate(_controller);
   }
 
   @override
@@ -443,7 +672,6 @@ class _ProfileSkeletonState extends State<_ProfileSkeleton>
           child: Column(
             children: [
               const SizedBox(height: 12),
-              // Avatar skeleton
               _ShimmerWidget(
                 animation: _animation,
                 child: Container(
@@ -456,7 +684,6 @@ class _ProfileSkeletonState extends State<_ProfileSkeleton>
                 ),
               ),
               const SizedBox(height: 14),
-              // Name skeleton
               _ShimmerWidget(
                 animation: _animation,
                 child: Container(
@@ -469,7 +696,6 @@ class _ProfileSkeletonState extends State<_ProfileSkeleton>
                 ),
               ),
               const SizedBox(height: 8),
-              // Email skeleton
               _ShimmerWidget(
                 animation: _animation,
                 child: Container(
@@ -481,8 +707,30 @@ class _ProfileSkeletonState extends State<_ProfileSkeleton>
                   ),
                 ),
               ),
+              const SizedBox(height: 20),
+              _ShimmerWidget(
+                animation: _animation,
+                child: SizedBox(
+                  height: 92,
+                  child: Row(
+                    children: List.generate(
+                      3,
+                      (i) => Container(
+                        width: 84,
+                        height: 84,
+                        margin: const EdgeInsets.only(right: 10),
+                        decoration: BoxDecoration(
+                          color: cs.surfaceVariant,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               const SizedBox(height: 32),
-              // Cards skeletons
+              _buildCardSkeleton(cs),
+              const SizedBox(height: 12),
               _buildCardSkeleton(cs),
               const SizedBox(height: 12),
               _buildCardSkeleton(cs),
@@ -600,82 +848,5 @@ class _SlidingGradientTransform extends GradientTransform {
   @override
   Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
     return Matrix4.translationValues(bounds.width * slidePercent, 0.0, 0.0);
-  }
-}
-
-// ================== ERROR STATE ==================
-
-class _ErrorState extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _ErrorState({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Scaffold(
-      backgroundColor: cs.surface,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: cs.errorContainer.withOpacity(0.3),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.error_outline_rounded,
-                    size: 64,
-                    color: cs.error,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  '¡Ups! Algo salió mal',
-                  style: textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: cs.onSurface,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  message,
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: cs.onSurface.withOpacity(0.7),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                FilledButton.icon(
-                  onPressed: onRetry,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Reintentar'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: cs.primary,
-                    foregroundColor: cs.onPrimary,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
