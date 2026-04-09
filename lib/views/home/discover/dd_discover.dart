@@ -106,7 +106,7 @@ class _DdDiscoverState extends State<DdDiscover>
         loading = false;
       });
     } catch (e) {
-      print("DISCOVER ERROR => $e");
+      debugPrint("DISCOVER ERROR => $e");
       if (!mounted) return;
 
       setState(() {
@@ -121,13 +121,23 @@ class _DdDiscoverState extends State<DdDiscover>
     if (other == null) return;
 
     final name = (other["fullname"] ?? "Nuevo match").toString();
-    final photo = (other["photo"] ?? "").toString();
 
-    // Extraer IDs del match
-    final matchId = match["ddm_int_id"] ?? match["id"] ?? match["match_id"];
-    final otherUserId = other["use_int_id"] ?? 0;
+    final photo = (other["photo_fallback_url"] ?? other["photo"] ?? "")
+        .toString();
 
-    // Obtener foto del usuario actual
+    final matchIdRaw = match["ddm_int_id"] ?? match["id"] ?? match["match_id"];
+    final otherUserIdRaw = other["use_int_id"] ?? 0;
+
+    final int? matchId = _asInt(matchIdRaw);
+    final int? otherUserId = _asInt(otherUserIdRaw);
+
+    if (matchId == null || otherUserId == null) {
+      debugPrint(
+        "MATCH DATA INVALID => matchId=$matchIdRaw otherUserId=$otherUserIdRaw",
+      );
+      return;
+    }
+
     final userInfo = await SharedPreferencesService().getUserInfo();
     final currentUserPhoto = userInfo?['use_txt_avatar']?.toString();
 
@@ -140,14 +150,20 @@ class _DdDiscoverState extends State<DdDiscover>
         builder: (_) => NewMatchScreen(
           matchedUserName: name,
           matchedUserPhoto: photo,
-          matchId: matchId is int ? matchId : int.parse(matchId.toString()),
-          otherUserId: otherUserId is int
-              ? otherUserId
-              : int.parse(otherUserId.toString()),
+          matchId: matchId,
+          otherUserId: otherUserId,
           currentUserPhoto: currentUserPhoto,
         ),
       ),
     );
+  }
+
+  int? _asInt(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    if (raw is String) return int.tryParse(raw);
+    return null;
   }
 
   int? _currentTargetUserId() {
@@ -157,10 +173,7 @@ class _DdDiscoverState extends State<DdDiscover>
     final current = users[currentIndex];
     final raw = current['use_int_id'];
 
-    if (raw is int) return raw;
-    if (raw is num) return raw.toInt();
-    if (raw is String) return int.tryParse(raw);
-    return null;
+    return _asInt(raw);
   }
 
   Future<void> _sendSwipeToBackend(String type) async {
@@ -183,13 +196,9 @@ class _DdDiscoverState extends State<DdDiscover>
 
       if (!mounted) return;
 
-      // ✅ Si hay match, muestra popup tipo Tinder
       final match = res["match"];
-      if (match != null) {
-        final other = match["other_user"] as Map<String, dynamic>?;
-        if (other != null) {
-          await _showNewMatchScreen(match);
-        }
+      if (match != null && match is Map<String, dynamic>) {
+        await _showNewMatchScreen(match);
       }
 
       if (!mounted) return;
@@ -351,6 +360,7 @@ class _DdDiscoverState extends State<DdDiscover>
             ),
             child: Text(
               text,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 color: color,
                 fontSize: 28,
@@ -466,8 +476,6 @@ class _DdDiscoverState extends State<DdDiscover>
     );
   }
 }
-
-// ================== SKELETON LOADER ==================
 
 class _DiscoverSkeleton extends StatefulWidget {
   const _DiscoverSkeleton();
@@ -629,8 +637,6 @@ class _DiscoverSkeletonState extends State<_DiscoverSkeleton>
   }
 }
 
-// ================== EMPTY STATE ==================
-
 class _EmptyDiscoverState extends StatelessWidget {
   final Future<void> Function() onRefresh;
 
@@ -716,8 +722,6 @@ class _EmptyDiscoverState extends StatelessWidget {
   }
 }
 
-// ================== ERROR STATE ==================
-
 class _DiscoverErrorState extends StatelessWidget {
   final String message;
   final Future<void> Function() onRetry;
@@ -791,8 +795,6 @@ class _DiscoverErrorState extends StatelessWidget {
     );
   }
 }
-
-// ================== SHIMMER WIDGET ==================
 
 class _ShimmerContainer extends StatelessWidget {
   final Animation<double> animation;

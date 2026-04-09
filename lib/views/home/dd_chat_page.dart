@@ -24,6 +24,10 @@ import 'package:date_and_doing/views/home/date_flow/chat_date_refresh_helper.dar
 import 'package:date_and_doing/views/home/date_flow/chat_date_confirmed_modal.dart';
 import 'package:date_and_doing/views/home/date_flow/chat_system_message_bubble.dart';
 import 'package:date_and_doing/views/home/date_flow/chat_timeline_api_mapper.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:date_and_doing/views/home/chat/widgets/chat_date_separator.dart';
+import 'package:date_and_doing/views/home/chat/utils/chat_date_utils.dart';
+import 'package:date_and_doing/views/home/matches/match_profile_model.dart';
 
 import 'package:date_and_doing/views/home/date_flow/chat_date_complete_modal.dart';
 
@@ -55,6 +59,8 @@ class DdChatPage extends StatefulWidget {
 
 class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
   int? _currentUserId;
+  bool _partnerIsOnline = false;
+  DateTime? _partnerLastSeenAt;
 
   bool _loadingMessages = true;
   String? _messagesError;
@@ -90,6 +96,91 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
         'https://n8n.fintbot.pe/webhook/be664844-a373-4376-888a-170049d6f2d5',
   );
 
+  final String currentUser = "Yo";
+
+  @override
+  void initState() {
+    super.initState();
+    initializeDateFormatting('es');
+    _bootstrap();
+  }
+
+  DateTime _safeParseToLocal(dynamic raw) {
+    if (raw == null) return DateTime.now().toLocal();
+
+    try {
+      return DateTime.parse(raw.toString()).toLocal();
+    } catch (_) {
+      return DateTime.now().toLocal();
+    }
+  }
+
+  String _formatHour(DateTime dt) {
+    return TimeOfDay.fromDateTime(dt).format(context);
+  }
+
+  String _formatDateKey(DateTime dt) {
+    final y = dt.year.toString().padLeft(4, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  int _safeSortTs(dynamic rawTs, DateTime fallbackDt) {
+    if (rawTs is int) return rawTs;
+    return fallbackDt.millisecondsSinceEpoch;
+  }
+
+  void _sortMessagesInPlace() {
+    _messages.sort((a, b) {
+      final aTs = (a['sort_ts_ms'] as int?) ?? 0;
+      final bTs = (b['sort_ts_ms'] as int?) ?? 0;
+      return aTs.compareTo(bTs);
+    });
+  }
+
+  Future<void> _loadPartnerPresence() async {
+    try {
+      final profile = await _api.getMatchProfile(widget.matchId);
+
+      if (!mounted) return;
+
+      setState(() {
+        _partnerIsOnline =
+            (profile.otherUser.onlineStatus ?? "").toUpperCase() == "ONLINE";
+        _partnerLastSeenAt = profile.otherUser.lastSeenAt;
+      });
+    } catch (e) {
+      debugPrint('Error loading partner presence: $e');
+    }
+  }
+
+  List<Map<String, dynamic>> _normalizeMessages(
+    List<Map<String, dynamic>> rawMessages,
+  ) {
+    final normalized = rawMessages.map((m) {
+      final rawCreatedAt =
+          m['created_at_iso'] ?? m['created_at'] ?? m['timestamp'];
+      final dt = _safeParseToLocal(rawCreatedAt);
+
+      return {
+        ...m,
+        'hora': m['hora'] ?? _formatHour(dt),
+        'fecha': m['fecha'] ?? _formatDateKey(dt),
+        'created_at_iso': dt.toIso8601String(),
+        'sort_ts_ms': _safeSortTs(m['sort_ts_ms'], dt),
+      };
+    }).toList();
+
+    normalized.sort((a, b) {
+      final aTs = (a['sort_ts_ms'] as int?) ?? 0;
+      final bTs = (b['sort_ts_ms'] as int?) ?? 0;
+      return aTs.compareTo(bTs);
+    });
+
+    return normalized;
+  }
+
   Future<void> _loadAliniPromptPreference() async {
     final prefs = await SharedPreferences.getInstance();
     _hideAliniUnlockedPrompt =
@@ -110,14 +201,6 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     } catch (e) {
       debugPrint('Error loading date unlock status: $e');
     }
-  }
-
-  final String currentUser = "Juan";
-
-  @override
-  void initState() {
-    super.initState();
-    _bootstrap();
   }
 
   Future<void> _cancelDate(DdDate d) async {
@@ -168,6 +251,36 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     await _loadAliniStatus();
     await _loadDateUnlockStatus();
     await _initWebSocket();
+    await _loadPartnerPresence();
+  }
+
+  String _buildPresenceText() {
+    if (_partnerIsOnline) return "En línea";
+    if (_partnerLastSeenAt == null) return "Desconectado";
+
+    final now = DateTime.now().toLocal();
+    final diff = now.difference(_partnerLastSeenAt!);
+
+    if (diff.inMinutes < 1) return "Hace un momento";
+    if (diff.inMinutes < 60) return "Hace ${diff.inMinutes} min";
+    if (diff.inHours < 24) return "Hace ${diff.inHours} h";
+    return "Hace ${diff.inDays} d";
+  }
+
+  Color _presenceColor() {
+    return _partnerIsOnline ? Colors.green.shade400 : Colors.grey.shade400;
+  }
+
+  Color _presenceBgColor() {
+    return _partnerIsOnline
+        ? Colors.green.withOpacity(0.12)
+        : Colors.grey.withOpacity(0.10);
+  }
+
+  Color _presenceBorderColor() {
+    return _partnerIsOnline
+        ? Colors.green.withOpacity(0.22)
+        : Colors.grey.withOpacity(0.18);
   }
 
   Future<void> _showDateLockedDialog() async {
@@ -273,6 +386,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
 
   void _onWebSocketConnectionChanged(bool isConnected) {
     if (!mounted) return;
+    _loadPartnerPresence();
     _showToast(
       isConnected ? 'Conectado' : 'Desconectado. Reconectando...',
       isConnected ? Colors.green : Colors.orange,
@@ -295,6 +409,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
 
   void _onWebSocketMessage(Map<String, dynamic> message) async {
     if (!mounted) return;
+    _loadPartnerPresence();
 
     _currentUserId ??= await SharedPreferencesService().getUserIdOrThrow();
 
@@ -312,12 +427,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
         return;
       }
 
-      DateTime createdAt;
-      try {
-        createdAt = DateTime.parse(message['created_at']?.toString() ?? '');
-      } catch (_) {
-        createdAt = DateTime.now();
-      }
+      final createdAt = _safeParseToLocal(message['created_at']);
 
       final newEvent = {
         "id":
@@ -325,9 +435,10 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
         "sender_id": -999,
         "autor": "Sistema",
         "text": (message['dde_txt_title'] ?? '').toString(),
-        "hora":
-            "${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}",
-        "fecha": createdAt.toIso8601String().substring(0, 10),
+        "hora": _formatHour(createdAt),
+        "fecha": _formatDateKey(createdAt),
+        "created_at_iso": createdAt.toIso8601String(),
+        "sort_ts_ms": createdAt.millisecondsSinceEpoch,
         "is_read": true,
         "is_temp": false,
         "is_system": true,
@@ -341,6 +452,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
         );
         if (!alreadyExists) {
           _messages.add(newEvent);
+          _sortMessagesInPlace();
         }
       });
 
@@ -365,22 +477,18 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
 
     if (senderId == null) return;
 
-    DateTime createdAt;
-    try {
-      createdAt = DateTime.parse(message['created_at']?.toString() ?? '');
-    } catch (_) {
-      createdAt = DateTime.now();
-    }
-
+    final createdAt = _safeParseToLocal(message['created_at']);
     final isMine = senderId.toString() == _currentUserId.toString();
 
     final newMessage = {
-      'id': serverMsgId ?? DateTime.now().millisecondsSinceEpoch,
+      'id': serverMsgId ?? createdAt.millisecondsSinceEpoch,
       'sender_id': senderId,
       'autor': isMine ? 'Yo' : widget.nombre,
       'text': body,
-      'hora': TimeOfDay.fromDateTime(createdAt).format(context),
-      'fecha': createdAt.toIso8601String().substring(0, 10),
+      'hora': _formatHour(createdAt),
+      'fecha': _formatDateKey(createdAt),
+      'created_at_iso': createdAt.toIso8601String(),
+      'sort_ts_ms': createdAt.millisecondsSinceEpoch,
       'is_read': (message['read'] == true),
       'is_temp': false,
     };
@@ -403,6 +511,8 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
       } else {
         _messages.add(newMessage);
       }
+
+      _sortMessagesInPlace();
     });
 
     _scrollToBottom(animate: true);
@@ -528,14 +638,17 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
 
     _currentUserId ??= await SharedPreferencesService().getUserIdOrThrow();
 
-    final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    final tempNow = DateTime.now().toLocal();
+    final tempId = 'temp_${tempNow.millisecondsSinceEpoch}';
     final tempMsg = {
       'id': tempId,
       'sender_id': _currentUserId,
       'autor': 'Yo',
       'text': text,
-      'hora': TimeOfDay.now().format(context),
-      'fecha': DateTime.now().toIso8601String().substring(0, 10),
+      'hora': _formatHour(tempNow),
+      'fecha': _formatDateKey(tempNow),
+      'created_at_iso': tempNow.toIso8601String(),
+      'sort_ts_ms': tempNow.millisecondsSinceEpoch,
       'is_read': false,
       'is_temp': true,
     };
@@ -543,6 +656,7 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     setState(() {
       _sendingMsg = true;
       _messages.add(tempMsg);
+      _sortMessagesInPlace();
     });
 
     _messageCtrl.clear();
@@ -601,13 +715,17 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
         widget.nombre,
       );
 
+      final normalized = _normalizeMessages(mapped);
+
       setState(() {
         _messages
           ..clear()
-          ..addAll(mapped);
+          ..addAll(normalized);
 
         if (tempMessages.isNotEmpty) {
-          for (final temp in tempMessages) {
+          final normalizedTemps = _normalizeMessages(tempMessages);
+
+          for (final temp in normalizedTemps) {
             final tempText = (temp['text'] ?? '').toString();
 
             final alreadyExists = _messages.any(
@@ -622,6 +740,8 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
             }
           }
         }
+
+        _sortMessagesInPlace();
         _loadingMessages = false;
       });
 
@@ -711,22 +831,36 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: cs.surface,
+      backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       appBar: _buildAppBar(cs),
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (_analyzing)
-              LinearProgressIndicator(
-                minHeight: 2,
-                color: cs.primary,
-                backgroundColor: cs.surfaceVariant,
-              ),
-            _buildDateBanner(),
-            Expanded(child: _buildBody(cs)),
-            _buildInputArea(cs),
-          ],
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              cs.surface,
+              Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF140A18)
+                  : const Color(0xFFFFF7FB),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              if (_analyzing)
+                LinearProgressIndicator(
+                  minHeight: 2,
+                  color: cs.primary,
+                  backgroundColor: cs.surfaceContainerHighest,
+                ),
+              _buildDateBanner(),
+              Expanded(child: _buildBody(cs)),
+              _buildInputArea(cs),
+            ],
+          ),
         ),
       ),
     );
@@ -750,9 +884,16 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: cs.primary.withOpacity(0.3),
+                        color: cs.primary.withOpacity(0.35),
                         width: 2,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: cs.primary.withOpacity(0.18),
+                          blurRadius: 16,
+                          spreadRadius: 1,
+                        ),
+                      ],
                     ),
                     child: CircleAvatar(
                       radius: 20,
@@ -786,12 +927,24 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
                           color: cs.onSurface,
                         ),
                       ),
-                      Text(
-                        "En línea",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.green.shade600,
-                          fontWeight: FontWeight.w600,
+
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _presenceBgColor(),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: _presenceBorderColor()),
+                        ),
+                        child: Text(
+                          _buildPresenceText(),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _presenceColor(),
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],
@@ -962,15 +1115,30 @@ class _DdChatPageState extends State<DdChatPage> with TickerProviderStateMixin {
         }
 
         final esMio = _esMio(msg);
+        final createdAt = _safeParseToLocal(
+          msg["created_at_iso"] ?? msg["fecha"],
+        );
 
-        return _MessageBubble(
-          message: msg["text"] as String,
-          time: msg["hora"] as String,
-          isMine: esMio,
-          isRead: msg["is_read"] == true,
-          senderName: esMio ? null : msg["autor"] as String,
-          avatarUrl: esMio ? null : widget.foto,
-          avatarBase64: esMio ? null : widget.fotoBase64,
+        final showDateSeparator = ChatDateUtils.shouldShowDateSeparator(
+          timelineItems: _timelineItems,
+          realIndex: realIndex,
+          safeParseToLocal: _safeParseToLocal,
+        );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (showDateSeparator) ChatDateSeparator(date: createdAt),
+            _MessageBubble(
+              message: msg["text"] as String,
+              time: msg["hora"] as String,
+              isMine: esMio,
+              isRead: msg["is_read"] == true,
+              senderName: esMio ? null : msg["autor"] as String,
+              avatarUrl: esMio ? null : widget.foto,
+              avatarBase64: esMio ? null : widget.fotoBase64,
+            ),
+          ],
         );
     }
   }

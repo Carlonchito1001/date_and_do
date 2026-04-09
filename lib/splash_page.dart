@@ -1,8 +1,8 @@
 import 'package:date_and_doing/api/api_service.dart';
+import 'package:date_and_doing/auth/post_login_gate_page.dart';
 import 'package:date_and_doing/services/fcm_service.dart';
 import 'package:date_and_doing/services/session_bootstrap_service.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
-import 'package:date_and_doing/views/home/dd_home.dart';
 import 'package:date_and_doing/views/login/dd_login.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -58,7 +58,6 @@ class _SplashPageState extends State<SplashPage>
       return;
     }
 
-    // 1) Refresh tokens
     try {
       await ApiService().warmRefreshIfNeeded();
 
@@ -74,28 +73,26 @@ class _SplashPageState extends State<SplashPage>
       return;
     }
 
-    // 2) FCM no bloquea
     try {
-      print("🚀 Antes de initFCM");
+      debugPrint("🚀 Antes de initFCM");
       await FcmService.initFCM();
-      print("✅ Después de initFCM");
+      debugPrint("✅ Después de initFCM");
     } catch (e) {
-      print("❌ Error initFCM: $e");
+      debugPrint("❌ Error initFCM: $e");
     }
 
-    // 3) Bootstrap de ubicación/FCM si está en null (NO bloquea)
     try {
       await SessionBootstrapService().ensureDeviceData();
     } catch (_) {}
 
     if (!mounted) return;
-    _goHome();
+    _goPostLoginGate();
   }
 
-  void _goHome() {
+  void _goPostLoginGate() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => DdHome()),
+      MaterialPageRoute(builder: (_) => const PostLoginGatePage()),
     );
   }
 

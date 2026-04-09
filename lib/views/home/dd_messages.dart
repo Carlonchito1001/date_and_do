@@ -54,6 +54,34 @@ class _DdMessagesState extends State<DdMessages> {
     _multiWs.events.listen(_onInboxWsEvent);
   }
 
+  DateTime _safeParseToLocal(dynamic raw) {
+    if (raw == null) return DateTime.now().toLocal();
+
+    try {
+      return DateTime.parse(raw.toString()).toLocal();
+    } catch (_) {
+      return DateTime.now().toLocal();
+    }
+  }
+
+  String _formatHour(DateTime dt) {
+    return TimeOfDay.fromDateTime(dt).format(context);
+  }
+
+  int? _asInt(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    return int.tryParse(v.toString());
+  }
+
+  void _sortConversationsInPlace() {
+    _conversations.sort(
+      (a, b) => ((b["timestamp"] as int?) ?? 0).compareTo(
+        (a["timestamp"] as int?) ?? 0,
+      ),
+    );
+  }
+
   Future<void> _bootstrap() async {
     _myId = await _prefs.getUserIdOrThrow();
     await _loadConversations();
@@ -186,8 +214,6 @@ class _DdMessagesState extends State<DdMessages> {
   }
 
   Future<void> _connectSocketsForVisibleConversations() async {
-    // Conecta a todos los matchId que están en la lista.
-    // Si quieres optimizar: conecta solo a los primeros 30.
     final ids = _conversations.map((c) => c["matchId"] as int).toList();
     await _multiWs.connectMany(ids);
   }
@@ -196,9 +222,6 @@ class _DdMessagesState extends State<DdMessages> {
     if (!mounted) return;
 
     final type = (event["type"] ?? "").toString();
-
-    // Tu backend termina enviando type = "chat.message" (porque **event pisa el type="message")
-    // y también puede mandar "connected" o "chat.read".
     if (type != "chat.message") return;
 
     final matchId = _asInt(
@@ -209,12 +232,7 @@ class _DdMessagesState extends State<DdMessages> {
     final body = (event["body"] ?? "").toString();
     if (body.isEmpty) return;
 
-    DateTime createdAt;
-    try {
-      createdAt = DateTime.parse((event["created_at"] ?? "").toString());
-    } catch (_) {
-      createdAt = DateTime.now();
-    }
+    final createdAt = _safeParseToLocal(event["created_at"]);
 
     final receiverId = _asInt(
       event["receiver_id"] ?? event["use_int_receiver"],
@@ -222,7 +240,6 @@ class _DdMessagesState extends State<DdMessages> {
     final isForMe =
         (_myId != null && receiverId != null && receiverId == _myId);
 
-    // Si la conversación no existe en lista (raro), recargamos todo.
     if (!_indexByMatchId.containsKey(matchId)) {
       _loadConversations();
       return;
@@ -237,15 +254,15 @@ class _DdMessagesState extends State<DdMessages> {
       final updated = {
         ...old,
         "ultimoMensaje": body,
-        "hora": TimeOfDay.fromDateTime(createdAt).format(context),
+        "hora": _formatHour(createdAt),
         "timestamp": createdAt.millisecondsSinceEpoch,
         "noLeidos": newUnread,
       };
 
-      // mover al top
       _conversations.removeAt(idx);
       _conversations.insert(0, updated);
 
+      _sortConversationsInPlace();
       _rebuildIndex();
     });
   }
@@ -269,7 +286,6 @@ class _DdMessagesState extends State<DdMessages> {
       final allMessages = await _api.getAllMessages();
       final allMatches = await _api.getAllMatches();
 
-      // matchId -> other_user info
       final Map<int, Map<String, dynamic>> matchInfo = {};
       for (final m in allMatches) {
         final matchId = _asInt(m["ddm_int_id"]);
@@ -288,7 +304,6 @@ class _DdMessagesState extends State<DdMessages> {
         }
       }
 
-      // agrupar mensajes por match
       final Map<int, List<Map<String, dynamic>>> grouped = {};
       for (final msg in allMessages) {
         if (msg["ddmsg_txt_status"] != "ACTIVO") continue;
@@ -304,15 +319,13 @@ class _DdMessagesState extends State<DdMessages> {
 
       grouped.forEach((matchId, msgs) {
         msgs.sort((a, b) {
-          final da = DateTime.parse(a["ddmsg_timestamp_datecreate"].toString());
-          final db = DateTime.parse(b["ddmsg_timestamp_datecreate"].toString());
+          final da = _safeParseToLocal(a["ddmsg_timestamp_datecreate"]);
+          final db = _safeParseToLocal(b["ddmsg_timestamp_datecreate"]);
           return da.compareTo(db);
         });
 
         final last = msgs.last;
-        final createdAt = DateTime.parse(
-          last["ddmsg_timestamp_datecreate"].toString(),
-        );
+        final createdAt = _safeParseToLocal(last["ddmsg_timestamp_datecreate"]);
 
         final unread = msgs.where((m) {
           final receiver = _asInt(m["use_int_receiver"]);
@@ -334,14 +347,16 @@ class _DdMessagesState extends State<DdMessages> {
           "fotoBase64": matchInfo[matchId]?["fotoBase64"],
           "fotoFallbackUrl": matchInfo[matchId]?["fotoFallbackUrl"] ?? "",
           "ultimoMensaje": (last["ddmsg_txt_body"] ?? "").toString(),
-          "hora": TimeOfDay.fromDateTime(createdAt).format(context),
-          "noLeidos": unread,
+          "hora": _formatHour(createdAt),
           "timestamp": createdAt.millisecondsSinceEpoch,
+          "noLeidos": unread,
         });
       });
 
       conversations.sort(
-        (a, b) => (b["timestamp"] as int).compareTo(a["timestamp"] as int),
+        (a, b) => ((b["timestamp"] as int?) ?? 0).compareTo(
+          (a["timestamp"] as int?) ?? 0,
+        ),
       );
 
       if (!mounted) return;
@@ -367,14 +382,7 @@ class _DdMessagesState extends State<DdMessages> {
     }
   }
 
-  int? _asInt(dynamic v) {
-    if (v == null) return null;
-    if (v is int) return v;
-    return int.tryParse(v.toString());
-  }
-
   void _openChat(Map<String, dynamic> c) async {
-    // Cuando entras al chat, normalmente quieres resetear el badge local.
     setState(() {
       c["noLeidos"] = 0;
     });
@@ -392,7 +400,6 @@ class _DdMessagesState extends State<DdMessages> {
       ),
     );
 
-    // Al volver, refresca por si cambió algo
     await _loadConversations();
     await _connectSocketsForVisibleConversations();
   }

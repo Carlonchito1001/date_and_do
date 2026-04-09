@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:date_and_doing/widgets/user_photo_view.dart';
 import '../../dd_chat_page.dart';
 
 class NewMatchScreen extends StatefulWidget {
@@ -33,14 +34,12 @@ class _NewMatchScreenState extends State<NewMatchScreen>
   @override
   void initState() {
     super.initState();
-    
-    // Controlador principal para la animación de entrada
+
     _controller = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
 
-    // Controlador para el efecto pulse
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
@@ -59,7 +58,6 @@ class _NewMatchScreenState extends State<NewMatchScreen>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    // Iniciar animación de entrada
     Future.delayed(const Duration(milliseconds: 100), () {
       _controller.forward();
     });
@@ -73,7 +71,7 @@ class _NewMatchScreenState extends State<NewMatchScreen>
   }
 
   void _goToChat(BuildContext context) {
-    Navigator.pop(context); // Cerrar pantalla de match'ñ
+    Navigator.pop(context);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -94,13 +92,11 @@ class _NewMatchScreenState extends State<NewMatchScreen>
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final size = MediaQuery.of(context).size;
 
     return Scaffold(
       backgroundColor: Colors.black.withOpacity(0.9),
       body: Stack(
         children: [
-          // Fondo con gradiente animado
           AnimatedBuilder(
             animation: _pulseController,
             builder: (context, child) {
@@ -120,7 +116,6 @@ class _NewMatchScreenState extends State<NewMatchScreen>
             },
           ),
 
-          // Partículas/Confetti decorativo
           ...List.generate(20, (index) {
             return _ConfettiParticle(
               delay: index * 0.1,
@@ -133,7 +128,6 @@ class _NewMatchScreenState extends State<NewMatchScreen>
             );
           }),
 
-          // Contenido principal
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -142,7 +136,6 @@ class _NewMatchScreenState extends State<NewMatchScreen>
                 children: [
                   const Spacer(),
 
-                  // Título animado
                   ScaleTransition(
                     scale: _scaleAnimation,
                     child: Column(
@@ -178,7 +171,6 @@ class _NewMatchScreenState extends State<NewMatchScreen>
 
                   const SizedBox(height: 48),
 
-                  // Fotos de los usuarios con animación
                   ScaleTransition(
                     scale: _scaleAnimation,
                     child: AnimatedBuilder(
@@ -189,14 +181,12 @@ class _NewMatchScreenState extends State<NewMatchScreen>
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              // Tu foto
                               _UserAvatar(
                                 photoUrl: widget.currentUserPhoto,
                                 size: 100,
                                 borderColor: cs.primary,
                               ),
                               const SizedBox(width: 16),
-                              // Icono de corazón
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
@@ -217,7 +207,6 @@ class _NewMatchScreenState extends State<NewMatchScreen>
                                 ),
                               ),
                               const SizedBox(width: 16),
-                              // Foto del match
                               _UserAvatar(
                                 photoUrl: widget.matchedUserPhoto,
                                 size: 100,
@@ -232,7 +221,6 @@ class _NewMatchScreenState extends State<NewMatchScreen>
 
                   const SizedBox(height: 32),
 
-                  // Nombre del match
                   ScaleTransition(
                     scale: _scaleAnimation,
                     child: Text(
@@ -247,12 +235,10 @@ class _NewMatchScreenState extends State<NewMatchScreen>
 
                   const Spacer(),
 
-                  // Botones de acción
                   ScaleTransition(
                     scale: _scaleAnimation,
                     child: Column(
                       children: [
-                        // Botón principal: Enviar mensaje
                         SizedBox(
                           width: double.infinity,
                           height: 56,
@@ -277,7 +263,6 @@ class _NewMatchScreenState extends State<NewMatchScreen>
                           ),
                         ),
                         const SizedBox(height: 12),
-                        // Botón secundario: Seguir descubriendo
                         SizedBox(
                           width: double.infinity,
                           height: 56,
@@ -318,8 +303,6 @@ class _NewMatchScreenState extends State<NewMatchScreen>
   }
 }
 
-// ================== USER AVATAR WIDGET ==================
-
 class _UserAvatar extends StatelessWidget {
   final String? photoUrl;
   final double size;
@@ -338,10 +321,7 @@ class _UserAvatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(
-          color: borderColor,
-          width: 4,
-        ),
+        border: Border.all(color: borderColor, width: 4),
         boxShadow: [
           BoxShadow(
             color: borderColor.withOpacity(0.4),
@@ -352,12 +332,10 @@ class _UserAvatar extends StatelessWidget {
       ),
       child: ClipOval(
         child: photoUrl != null && photoUrl!.isNotEmpty
-            ? Image.network(
-                photoUrl!,
+            ? UserPhotoView(
+                fallbackUrl: photoUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return _buildPlaceholder();
-                },
+                errorWidget: _buildPlaceholder(),
               )
             : _buildPlaceholder(),
       ),
@@ -376,16 +354,11 @@ class _UserAvatar extends StatelessWidget {
   }
 }
 
-// ================== CONFETTI PARTICLE ==================
-
 class _ConfettiParticle extends StatefulWidget {
   final double delay;
   final Color color;
 
-  const _ConfettiParticle({
-    required this.delay,
-    required this.color,
-  });
+  const _ConfettiParticle({required this.delay, required this.color});
 
   @override
   State<_ConfettiParticle> createState() => _ConfettiParticleState();
@@ -408,12 +381,8 @@ class _ConfettiParticleState extends State<_ConfettiParticle>
       vsync: this,
     );
 
-    _animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
 
-    // Posiciones aleatorias
     final random = Random();
     _startX = random.nextDouble() * 400 - 200;
     _startY = -50;

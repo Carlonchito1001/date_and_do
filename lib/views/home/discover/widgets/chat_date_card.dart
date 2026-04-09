@@ -47,6 +47,64 @@ class ChatDateCard extends StatelessWidget {
     return "Cita pendiente";
   }
 
+  String _headlineText() {
+    if (date.isPending) {
+      return isCreator
+          ? "Tú propusiste esta cita"
+          : "$creatorName te propuso una cita";
+    }
+
+    if (date.isConfirmed) {
+      return isCreator
+          ? "Tu propuesta fue aceptada"
+          : "Aceptaste esta propuesta";
+    }
+
+    if (date.isRejected) {
+      return isCreator
+          ? "Tu propuesta fue rechazada"
+          : "Rechazaste esta propuesta";
+    }
+
+    if (date.isCanceled) {
+      return "Esta cita fue cancelada";
+    }
+
+    if (date.isCompleted) {
+      return "Esta cita ya forma parte de su historia";
+    }
+
+    return "Estado de la cita";
+  }
+
+  String _supportText() {
+    if (date.isPending && isCreator) {
+      return "Tu match todavía no responde esta invitación.";
+    }
+
+    if (date.isPending && !isCreator) {
+      return "Puedes aceptar o rechazar esta propuesta.";
+    }
+
+    if (date.isConfirmed) {
+      return "Ya tienen un plan confirmado ✨";
+    }
+
+    if (date.isRejected) {
+      return "Esta propuesta no continuó.";
+    }
+
+    if (date.isCanceled) {
+      return "La actividad ya no sigue en pie.";
+    }
+
+    if (date.isCompleted) {
+      return "Un nuevo recuerdo fue creado 🌍";
+    }
+
+    return "";
+  }
+
   String _formatDate(DateTime dt) {
     final dd = dt.day.toString().padLeft(2, '0');
     final mm = dt.month.toString().padLeft(2, '0');
@@ -54,6 +112,32 @@ class ChatDateCard extends StatelessWidget {
     final hh = dt.hour.toString().padLeft(2, '0');
     final mi = dt.minute.toString().padLeft(2, '0');
     return "$dd/$mm/$yyyy • $hh:$mi";
+  }
+
+  Widget _statusBadge(Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.24)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_statusIcon(), color: color, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            _statusText(),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: color,
+              fontSize: 12.5,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -85,77 +169,101 @@ class ChatDateCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Estado
-            Row(
-              children: [
-                Icon(_statusIcon(), color: statusColor, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  _statusText(),
-                  style: textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: statusColor,
-                  ),
-                ),
-              ],
-            ),
+            _statusBadge(statusColor),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
-            // Quién propuso
             Text(
-              isCreator
-                  ? "Tú propusiste esta cita"
-                  : "$creatorName te propuso una cita",
+              _headlineText(),
               style: textTheme.bodySmall?.copyWith(
-                color: cs.onSurface.withOpacity(0.65),
-                fontWeight: FontWeight.w600,
+                color: cs.onSurface.withOpacity(0.68),
+                fontWeight: FontWeight.w700,
               ),
             ),
 
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
 
-            // Título
             Text(
               date.title,
               style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w900,
                 color: cs.onSurface,
               ),
             ),
 
-            const SizedBox(height: 8),
-
-            // Descripción
-            if (date.description.trim().isNotEmpty)
+            if (date.description.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
               Text(
                 date.description,
                 style: textTheme.bodyMedium?.copyWith(
-                  color: cs.onSurface.withOpacity(0.80),
-                  height: 1.35,
+                  color: cs.onSurface.withOpacity(0.82),
+                  height: 1.4,
                 ),
               ),
+            ],
 
-            if (date.description.trim().isNotEmpty) const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
-            // Fecha
-            Row(
-              children: [
-                Icon(Icons.calendar_today_rounded, size: 16, color: cs.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _formatDate(date.scheduledAt),
-                    style: textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: cs.onSurface.withOpacity(0.85),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: cs.surfaceVariant.withOpacity(0.45),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: cs.outline.withOpacity(0.18)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.calendar_today_rounded,
+                    size: 16,
+                    color: cs.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _formatDate(date.scheduledAt),
+                      style: textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface.withOpacity(0.86),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
 
-            // Pendiente y yo soy receptor: mostrar botones
+            if (_supportText().isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    date.isConfirmed
+                        ? Icons.favorite_rounded
+                        : date.isRejected
+                        ? Icons.info_outline_rounded
+                        : date.isCanceled
+                        ? Icons.info_outline_rounded
+                        : date.isCompleted
+                        ? Icons.emoji_events_rounded
+                        : Icons.hourglass_top_rounded,
+                    size: 18,
+                    color: statusColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _supportText(),
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
             if (date.isPending && !isCreator) ...[
               const SizedBox(height: 16),
               Row(
@@ -200,55 +308,6 @@ class ChatDateCard extends StatelessWidget {
                 ],
               ),
             ],
-
-            // Pendiente y yo soy creador
-            if (date.isPending && isCreator)
-              Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.hourglass_top_rounded,
-                      size: 18,
-                      color: Colors.orange.shade700,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      "Esperando respuesta...",
-                      style: textTheme.bodyMedium?.copyWith(
-                        fontStyle: FontStyle.italic,
-                        color: Colors.orange.shade700,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            // Confirmada
-            if (date.isConfirmed)
-              Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.favorite_rounded,
-                      size: 18,
-                      color: Colors.green.shade700,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        "Esta cita ya forma parte de su historia ✨",
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
 
             if (date.isConfirmed && onComplete != null)
               Padding(
@@ -319,81 +378,6 @@ class ChatDateCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                  ],
-                ),
-              ),
-
-            // Rechazada
-            if (date.isRejected)
-              Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline_rounded,
-                      size: 18,
-                      color: Colors.red.shade700,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        "La propuesta no fue aceptada.",
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: Colors.red.shade700,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            // Cancelada
-            if (date.isCanceled)
-              Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline_rounded,
-                      size: 18,
-                      color: Colors.orange.shade700,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        "La cita fue cancelada.",
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: Colors.orange.shade700,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            // Completada
-            if (date.isCompleted)
-              Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.emoji_events_rounded,
-                      size: 18,
-                      color: Colors.blueGrey.shade700,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        "Cita completada. Un nuevo recuerdo fue creado 🌍",
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: Colors.blueGrey.shade700,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),

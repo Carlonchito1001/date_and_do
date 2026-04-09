@@ -52,6 +52,9 @@ class MatchProfileUserModel {
   final String? interests;
   final String? avatar;
 
+  final String? onlineStatus;
+  final DateTime? lastSeenAt;
+
   const MatchProfileUserModel({
     required this.id,
     required this.fullName,
@@ -63,6 +66,8 @@ class MatchProfileUserModel {
     this.occupation,
     this.interests,
     this.avatar,
+    this.onlineStatus,
+    this.lastSeenAt,
   });
 
   factory MatchProfileUserModel.fromJson(Map<String, dynamic> json) {
@@ -77,6 +82,12 @@ class MatchProfileUserModel {
       occupation: json["use_txt_occupation"]?.toString(),
       interests: json["use_txt_interests"]?.toString(),
       avatar: json["use_txt_avatar"]?.toString(),
+      onlineStatus: json["online_status"]?.toString(),
+      lastSeenAt:
+          json["last_seen_at"] != null &&
+              json["last_seen_at"].toString().isNotEmpty
+          ? DateTime.tryParse(json["last_seen_at"].toString())?.toLocal()
+          : null,
     );
   }
 }

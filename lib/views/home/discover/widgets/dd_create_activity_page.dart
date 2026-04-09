@@ -25,7 +25,6 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
   bool _isSaving = false;
   String _selectedId = "playa";
 
-  // ✅ Lugar elegido desde la API externa
   PlaceItem? _selectedLugar;
 
   final _dayCtrl = TextEditingController();
@@ -38,7 +37,6 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
   final List<_ActivityItem> _activities = const [
     _ActivityItem(id: "playa", emoji: "🏖️", label: "Día de Playa"),
     _ActivityItem(id: "parque", emoji: "🌳", label: "Salida al Parque"),
-    // _ActivityItem(id: "cena", emoji: "🍽️", label: "Cena Romántica"),
     _ActivityItem(id: "cafe", emoji: "☕", label: "Café"),
     _ActivityItem(id: "cine", emoji: "🎬", label: "Cine"),
     _ActivityItem(id: "museo", emoji: "🏛️", label: "Museo"),
@@ -62,7 +60,6 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
   _ActivityItem get _selectedActivity =>
       _activities.firstWhere((a) => a.id == _selectedId);
 
-  // Categorías que requieren seleccionar un lugar específico de la API
   static const List<String> _placePickerCategories = [
     "tienda",
     "restaurante",
@@ -160,7 +157,6 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
   }
 
   Future<void> _openLugarPicker() async {
-    // 👇 aquí le pasas la categoría seleccionada
     final picked = await showModalBottomSheet<PlaceItem>(
       context: context,
       isScrollControlled: true,
@@ -176,7 +172,6 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
     if (picked != null) {
       setState(() => _selectedLugar = picked);
 
-      // autocompleta el campo Lugar/Nota de forma bonita
       final title = picked.displayName;
       final bio = picked.biography.trim();
       final url = picked.url.trim();
@@ -243,6 +238,7 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
 
       final created = _DateCreated(
         id: createdId,
+        matchId: widget.matchId,
         partnerName: widget.partnerName,
         activityLabel: title,
         activityId: _selectedActivity.id,
@@ -280,7 +276,7 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
               ),
             ],
           ),
-        );  
+        );
         return;
       }
 
@@ -324,7 +320,6 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
       backgroundColor: cs.surface,
       body: Column(
         children: [
-          // Top bar
           Container(
             padding: EdgeInsets.only(top: top),
             decoration: BoxDecoration(gradient: headerGradient),
@@ -410,11 +405,9 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
                         onTap: () async {
                           setState(() {
                             _selectedId = item.id;
-                            // si cambias de actividad, resetea tienda elegida
                             if (!_needsPlacePicker) _selectedLugar = null;
                           });
 
-                          // si la actividad requiere lugar, abre selector
                           if (_placePickerCategories.contains(item.id)) {
                             await _openLugarPicker();
                           }
@@ -516,7 +509,6 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
 
                   const SizedBox(height: 18),
 
-                  // ✅ Lugar seleccionado (cuando es tienda)
                   if (_needsPlacePicker) ...[
                     _RequiredLabel(text: "Lugar elegido", cs: cs),
                     const SizedBox(height: 10),
@@ -613,8 +605,6 @@ class _DdCreateActivityPageState extends State<DdCreateActivityPage> {
     );
   }
 }
-
-// ================= UI Components =================
 
 class _RequiredLabel extends StatelessWidget {
   final String text;
@@ -912,8 +902,6 @@ class _PreviewCard extends StatelessWidget {
   }
 }
 
-// ================= Result Model + Dialog =================
-
 class _ActivityItem {
   final String id;
   final String emoji;
@@ -928,6 +916,7 @@ class _ActivityItem {
 
 class _DateCreated {
   final String id;
+  final int matchId;
   final String partnerName;
   final String activityLabel;
   final String activityId;
@@ -936,6 +925,7 @@ class _DateCreated {
 
   _DateCreated({
     required this.id,
+    required this.matchId,
     required this.partnerName,
     required this.activityLabel,
     required this.activityId,
@@ -967,7 +957,6 @@ class _SuccessDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header con gradiente
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
@@ -1014,12 +1003,10 @@ class _SuccessDialog extends StatelessWidget {
               ),
             ),
 
-            // Contenido
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  // Detalles de la cita
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -1047,7 +1034,6 @@ class _SuccessDialog extends StatelessWidget {
 
                   const SizedBox(height: 16),
 
-                  // Información importante
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -1079,7 +1065,6 @@ class _SuccessDialog extends StatelessWidget {
 
                   const SizedBox(height: 20),
 
-                  // Botones
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -1105,7 +1090,6 @@ class _SuccessDialog extends StatelessWidget {
 
                   const SizedBox(height: 12),
 
-                  // Enlace a History World
                   TextButton.icon(
                     onPressed: () {
                       Navigator.pop(context);
@@ -1113,7 +1097,7 @@ class _SuccessDialog extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (_) => HistoryLevelsPage(
-                            matchId: int.parse(created.id),
+                            matchId: created.matchId,
                             partnerName: created.partnerName,
                           ),
                         ),

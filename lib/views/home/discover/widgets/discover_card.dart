@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:date_and_doing/widgets/user_photo_view.dart';
+import 'interest_chip.dart';
 
 class DiscoverCard extends StatelessWidget {
   final Map<String, dynamic> user;
@@ -39,6 +41,16 @@ class DiscoverCard extends StatelessWidget {
     }
   }
 
+  List<String> _parseInterests(String raw) {
+    if (raw.trim().isEmpty) return [];
+    return raw
+        .split(RegExp(r'[,|/]'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .take(6)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -58,6 +70,8 @@ class DiscoverCard extends StatelessWidget {
     final String lookingFor = _safeString(user['ddp_txt_looking_for']);
     final String gender = _safeString(user['ddp_txt_gender']);
     final String interests = _safeString(user['use_txt_interests']);
+
+    final List<String> interestList = _parseInterests(interests);
 
     final double distance = (user['distance_km'] as num?)?.toDouble() ?? 0.0;
 
@@ -117,6 +131,26 @@ class DiscoverCard extends StatelessWidget {
       );
     }
 
+    Widget _fallbackAvatar() {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [cs.primary, cs.secondary],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: txt.displayLarge?.copyWith(
+            color: cs.onPrimary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+    }
+
     return Center(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 18),
@@ -140,47 +174,13 @@ class DiscoverCard extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   if (avatar.isNotEmpty)
-                    Image.network(
-                      avatar,
+                    UserPhotoView(
+                      fallbackUrl: avatar,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) {
-                        return Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [cs.primary, cs.secondary],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : '?',
-                            style: txt.displayLarge?.copyWith(
-                              color: cs.onPrimary,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        );
-                      },
+                      errorWidget: _fallbackAvatar(),
                     )
                   else
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [cs.primary, cs.secondary],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        name.isNotEmpty ? name[0].toUpperCase() : '?',
-                        style: txt.displayLarge?.copyWith(
-                          color: cs.onPrimary,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
+                    _fallbackAvatar(),
 
                   const DecoratedBox(
                     decoration: BoxDecoration(
@@ -290,7 +290,7 @@ class DiscoverCard extends StatelessWidget {
                     ),
                   ),
 
-                  if (interests.isNotEmpty) ...[
+                  if (interestList.isNotEmpty) ...[
                     const SizedBox(height: 14),
                     Text(
                       'Intereses',
@@ -300,14 +300,12 @@ class DiscoverCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      interests,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: txt.bodyMedium?.copyWith(
-                        color: cs.onSurface.withOpacity(0.72),
-                        height: 1.35,
-                      ),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: interestList
+                          .map((e) => InterestChip(label: e))
+                          .toList(),
                     ),
                   ],
                 ],

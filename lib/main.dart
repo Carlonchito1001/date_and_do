@@ -5,6 +5,7 @@ import 'package:date_and_doing/theme/app_theme.dart';
 import 'package:date_and_doing/theme/theme_controller.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:date_and_doing/navigation/app_navigator.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,7 @@ class MyApp extends StatelessWidget {
       valueListenable: ThemeController.themeMode,
       builder: (context, themeMode, _) {
         return MaterialApp(
+          navigatorKey: appNavigatorKey,
           title: 'Date & Doing',
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
