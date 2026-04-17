@@ -812,6 +812,8 @@ class _PhotoGalleryPageState extends State<_PhotoGalleryPage> {
   late final PageController _controller;
   late int _index;
 
+  final Map<int, int> _quarterTurnsByIndex = {};
+
   @override
   void initState() {
     super.initState();
@@ -836,9 +838,24 @@ class _PhotoGalleryPageState extends State<_PhotoGalleryPage> {
     }
   }
 
+  int _currentTurns() => _quarterTurnsByIndex[_index] ?? 0;
+
+  void _rotateLeft() {
+    setState(() {
+      _quarterTurnsByIndex[_index] = (_currentTurns() - 1) % 4;
+    });
+  }
+
+  void _rotateRight() {
+    setState(() {
+      _quarterTurnsByIndex[_index] = (_currentTurns() + 1) % 4;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final total = widget.photos.length;
+    final currentTurns = ((_currentTurns() % 4) + 4) % 4;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -846,6 +863,18 @@ class _PhotoGalleryPageState extends State<_PhotoGalleryPage> {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         title: Text("${_index + 1} / $total"),
+        actions: [
+          IconButton(
+            tooltip: "Girar izquierda",
+            onPressed: _rotateLeft,
+            icon: const Icon(Icons.rotate_left_rounded),
+          ),
+          IconButton(
+            tooltip: "Girar derecha",
+            onPressed: _rotateRight,
+            icon: const Icon(Icons.rotate_right_rounded),
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -857,18 +886,23 @@ class _PhotoGalleryPageState extends State<_PhotoGalleryPage> {
             },
             itemBuilder: (_, i) {
               final photo = widget.photos[i];
+              final turns = (((_quarterTurnsByIndex[i] ?? 0) % 4) + 4) % 4;
+
               return Center(
                 child: InteractiveViewer(
                   minScale: 0.8,
                   maxScale: 4,
-                  child: UserPhotoView(
-                    base64String: _preview(photo),
-                    fallbackUrl: _url(photo),
-                    fit: BoxFit.contain,
-                    errorWidget: const Icon(
-                      Icons.broken_image_rounded,
-                      color: Colors.white,
-                      size: 64,
+                  child: RotatedBox(
+                    quarterTurns: turns,
+                    child: UserPhotoView(
+                      base64String: _preview(photo),
+                      fallbackUrl: _url(photo),
+                      fit: BoxFit.contain,
+                      errorWidget: const Icon(
+                        Icons.broken_image_rounded,
+                        color: Colors.white,
+                        size: 64,
+                      ),
                     ),
                   ),
                 ),
@@ -898,6 +932,34 @@ class _PhotoGalleryPageState extends State<_PhotoGalleryPage> {
                 ),
               ),
             ),
+          Positioned(
+            bottom: 18,
+            left: 16,
+            right: 16,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.45),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.white.withOpacity(0.10)),
+                ),
+                child: Text(
+                  currentTurns == 0
+                      ? "Desliza, haz zoom o gira la foto"
+                      : "Rotación: ${currentTurns * 90}°",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1051,35 +1113,103 @@ class _HeroInfoChip extends StatelessWidget {
   }
 }
 
-class _SinglePhotoViewerPage extends StatelessWidget {
+class _SinglePhotoViewerPage extends StatefulWidget {
   final String? base64;
   final String? url;
 
   const _SinglePhotoViewerPage({this.base64, this.url});
 
   @override
+  State<_SinglePhotoViewerPage> createState() => _SinglePhotoViewerPageState();
+}
+
+class _SinglePhotoViewerPageState extends State<_SinglePhotoViewerPage> {
+  int _quarterTurns = 0;
+
+  void _rotateLeft() {
+    setState(() {
+      _quarterTurns = (_quarterTurns - 1) % 4;
+    });
+  }
+
+  void _rotateRight() {
+    setState(() {
+      _quarterTurns = (_quarterTurns + 1) % 4;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final turns = ((_quarterTurns % 4) + 4) % 4;
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            tooltip: "Girar izquierda",
+            onPressed: _rotateLeft,
+            icon: const Icon(Icons.rotate_left_rounded),
+          ),
+          IconButton(
+            tooltip: "Girar derecha",
+            onPressed: _rotateRight,
+            icon: const Icon(Icons.rotate_right_rounded),
+          ),
+        ],
       ),
-      body: Center(
-        child: InteractiveViewer(
-          minScale: 0.8,
-          maxScale: 4,
-          child: UserPhotoView(
-            base64String: base64,
-            fallbackUrl: url ?? '',
-            fit: BoxFit.contain,
-            errorWidget: const Icon(
-              Icons.broken_image_rounded,
-              color: Colors.white,
-              size: 64,
+      body: Stack(
+        children: [
+          Center(
+            child: InteractiveViewer(
+              minScale: 0.8,
+              maxScale: 4,
+              child: RotatedBox(
+                quarterTurns: turns,
+                child: UserPhotoView(
+                  base64String: widget.base64,
+                  fallbackUrl: widget.url ?? '',
+                  fit: BoxFit.contain,
+                  errorWidget: const Icon(
+                    Icons.broken_image_rounded,
+                    color: Colors.white,
+                    size: 64,
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
+          Positioned(
+            bottom: 18,
+            left: 16,
+            right: 16,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.45),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.white.withOpacity(0.10)),
+                ),
+                child: Text(
+                  turns == 0
+                      ? "Haz zoom o gira la foto"
+                      : "Rotación: ${turns * 90}°",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
