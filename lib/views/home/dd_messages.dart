@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:date_and_doing/api/api_service.dart';
@@ -164,6 +163,7 @@ class _DdMessagesState extends State<DdMessages> {
     String selectedReason = "SPAM";
     final detailsController = TextEditingController();
     bool isSubmitting = false;
+    final cs = Theme.of(context).colorScheme;
 
     await showDialog(
       context: context,
@@ -175,13 +175,23 @@ class _DdMessagesState extends State<DdMessages> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
-              title: Text("Reportar a $userName"),
+              backgroundColor: cs.surface,
+              title: Text(
+                "Reportar a $userName",
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Selecciona un motivo"),
+                    Text(
+                      "Selecciona un motivo",
+                      style: TextStyle(
+                        color: cs.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: selectedReason,
@@ -202,8 +212,11 @@ class _DdMessagesState extends State<DdMessages> {
                               });
                             },
                       decoration: InputDecoration(
+                        filled: true,
+                        fillColor: cs.surfaceContainerHighest.withOpacity(0.45),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
                         ),
                       ),
                     ),
@@ -215,8 +228,11 @@ class _DdMessagesState extends State<DdMessages> {
                       decoration: InputDecoration(
                         labelText: "Detalles adicionales",
                         hintText: "Cuéntanos qué pasó",
+                        filled: true,
+                        fillColor: cs.surfaceContainerHighest.withOpacity(0.45),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
                         ),
                       ),
                     ),
@@ -381,7 +397,11 @@ class _DdMessagesState extends State<DdMessages> {
         });
       });
 
-      _sortConversationsInPlace();
+      conversations.sort(
+        (a, b) => ((b["timestamp"] as int?) ?? 0).compareTo(
+          (a["timestamp"] as int?) ?? 0,
+        ),
+      );
 
       if (!mounted) return;
 
@@ -449,23 +469,29 @@ class _DdMessagesState extends State<DdMessages> {
 
     final cs = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      backgroundColor: cs.surface,
-      body: RefreshIndicator(
+    return ColoredBox(
+      color: cs.surface,
+      child: RefreshIndicator(
         onRefresh: () async {
           await _loadConversations();
           await _connectSocketsForVisibleConversations();
         },
         child: ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
           itemCount: _conversations.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          separatorBuilder: (_, __) => Divider(
+            height: 1,
+            indent: 84,
+            endIndent: 8,
+            color: cs.outlineVariant.withOpacity(0.25),
+          ),
           itemBuilder: (context, i) {
             final chat = _conversations[i];
             final unreadCount = (chat["noLeidos"] as int?) ?? 0;
             final hasUnread = unreadCount > 0;
 
-            return _ConversationCard(
+            return _ConversationTile(
               nombre: chat["nombre"]?.toString() ?? "Usuario",
               ultimoMensaje: chat["ultimoMensaje"]?.toString() ?? "",
               hora: chat["hora"]?.toString() ?? "",
@@ -491,7 +517,7 @@ class _DdMessagesState extends State<DdMessages> {
   }
 }
 
-class _ConversationCard extends StatelessWidget {
+class _ConversationTile extends StatelessWidget {
   final String nombre;
   final String ultimoMensaje;
   final String hora;
@@ -502,7 +528,7 @@ class _ConversationCard extends StatelessWidget {
   final VoidCallback onTap;
   final Future<void> Function() onReport;
 
-  const _ConversationCard({
+  const _ConversationTile({
     required this.nombre,
     required this.ultimoMensaje,
     required this.hora,
@@ -522,147 +548,110 @@ class _ConversationCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: hasUnread
-                ? cs.primary.withOpacity(0.06)
-                : cs.surfaceContainerHighest.withOpacity(0.35),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: hasUnread
-                  ? cs.primary.withOpacity(0.20)
-                  : cs.outlineVariant.withOpacity(0.35),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            child: Row(
-              children: [
-                Stack(
-                  children: [
-                    Container(
-                      width: 58,
-                      height: 58,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: hasUnread
-                              ? cs.primary.withOpacity(0.35)
-                              : cs.outlineVariant.withOpacity(0.35),
-                          width: 2,
-                        ),
-                      ),
-                      child: ClipOval(
-                        child: UserPhotoView(
-                          base64String: fotoBase64,
-                          fallbackUrl: fotoFallbackUrl,
-                          width: 58,
-                          height: 58,
-                          fit: BoxFit.cover,
-                          errorWidget: Icon(
-                            Icons.person,
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (hasUnread)
-                      Positioned(
-                        right: 2,
-                        top: 2,
-                        child: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: cs.primary,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: cs.surface, width: 2),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        nombre,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: hasUnread
-                              ? FontWeight.w800
-                              : FontWeight.w700,
-                          color: cs.onSurface,
-                          letterSpacing: 0.1,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        ultimoMensaje.isEmpty
-                            ? 'Sin mensajes aún'
-                            : ultimoMensaje,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          height: 1.25,
-                          color: hasUnread
-                              ? cs.onSurface.withOpacity(0.86)
-                              : cs.onSurfaceVariant,
-                          fontWeight: hasUnread
-                              ? FontWeight.w600
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ],
+        borderRadius: BorderRadius.circular(22),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: hasUnread
+                        ? cs.primary.withOpacity(0.35)
+                        : cs.outlineVariant.withOpacity(0.25),
+                    width: 2,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                child: ClipOval(
+                  child: UserPhotoView(
+                    base64String: fotoBase64,
+                    fallbackUrl: fotoFallbackUrl,
+                    width: 58,
+                    height: 58,
+                    fit: BoxFit.cover,
+                    errorWidget: Icon(Icons.person, color: cs.onSurfaceVariant),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      hora,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: hasUnread
-                            ? FontWeight.w700
-                            : FontWeight.w600,
-                        color: hasUnread
-                            ? cs.primary
-                            : cs.onSurfaceVariant.withOpacity(0.8),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
                     Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
+                        Expanded(
+                          child: Text(
+                            nombre,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: hasUnread
+                                  ? FontWeight.w800
+                                  : FontWeight.w700,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          hora,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: hasUnread
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: hasUnread
+                                ? cs.primary
+                                : cs.onSurfaceVariant.withOpacity(0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            ultimoMensaje.isEmpty
+                                ? 'Sin mensajes aún'
+                                : ultimoMensaje,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              height: 1.2,
+                              color: hasUnread
+                                  ? cs.onSurface.withOpacity(0.88)
+                                  : cs.onSurfaceVariant,
+                              fontWeight: hasUnread
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
                         if (unreadCount > 0)
                           Container(
+                            constraints: const BoxConstraints(
+                              minWidth: 22,
+                              minHeight: 22,
+                            ),
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 5,
+                              horizontal: 6,
+                              vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [cs.primary, cs.secondary],
-                              ),
+                              color: cs.primary,
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
                               unreadCount > 99 ? '99+' : '$unreadCount',
+                              textAlign: TextAlign.center,
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 11,
@@ -682,7 +671,7 @@ class _ConversationCard extends StatelessWidget {
                           ),
                           icon: Icon(
                             Icons.more_vert_rounded,
-                            color: cs.onSurfaceVariant,
+                            color: cs.onSurfaceVariant.withOpacity(0.9),
                             size: 20,
                           ),
                           itemBuilder: (context) => const [
@@ -696,8 +685,8 @@ class _ConversationCard extends StatelessWidget {
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -718,9 +707,9 @@ class _EmptyMessagesState extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Scaffold(
-      backgroundColor: cs.surface,
-      body: RefreshIndicator(
+    return ColoredBox(
+      color: cs.surface,
+      child: RefreshIndicator(
         onRefresh: onRefresh,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -741,12 +730,7 @@ class _EmptyMessagesState extends StatelessWidget {
                         height: 110,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [
-                              cs.primary.withOpacity(0.18),
-                              cs.secondary.withOpacity(0.12),
-                            ],
-                          ),
+                          color: cs.primary.withOpacity(0.10),
                         ),
                         child: Icon(
                           Icons.chat_bubble_outline_rounded,
@@ -754,7 +738,7 @@ class _EmptyMessagesState extends StatelessWidget {
                           color: cs.primary,
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
                       Text(
                         'Aún no tienes mensajes',
                         style: textTheme.headlineSmall?.copyWith(
@@ -772,7 +756,7 @@ class _EmptyMessagesState extends StatelessWidget {
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 26),
                       FilledButton.icon(
                         onPressed: onRefresh,
                         icon: const Icon(Icons.refresh_rounded),
@@ -849,23 +833,31 @@ class _MessagesSkeletonState extends State<_MessagesSkeleton>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        itemCount: 6,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+    final cs = Theme.of(context).colorScheme;
+
+    return ColoredBox(
+      color: cs.surface,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+        itemCount: 7,
+        separatorBuilder: (_, __) => Divider(
+          height: 1,
+          indent: 84,
+          endIndent: 8,
+          color: cs.outlineVariant.withOpacity(0.20),
+        ),
         itemBuilder: (context, i) {
-          return _ShimmerCard(animation: _animation);
+          return _ShimmerConversationTile(animation: _animation);
         },
       ),
     );
   }
 }
 
-class _ShimmerCard extends StatelessWidget {
+class _ShimmerConversationTile extends StatelessWidget {
   final Animation<double> animation;
 
-  const _ShimmerCard({required this.animation});
+  const _ShimmerConversationTile({required this.animation});
 
   @override
   Widget build(BuildContext context) {
@@ -873,13 +865,8 @@ class _ShimmerCard extends StatelessWidget {
 
     return _ShimmerContainer(
       animation: animation,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: cs.surfaceContainerHighest.withOpacity(0.35),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: cs.outlineVariant.withOpacity(0.30)),
-        ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
         child: Row(
           children: [
             Container(
@@ -895,13 +882,26 @@ class _ShimmerCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 140,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 130,
+                        height: 15,
+                        decoration: BoxDecoration(
+                          color: cs.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        width: 34,
+                        height: 11,
+                        decoration: BoxDecoration(
+                          color: cs.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   Container(
@@ -914,29 +914,6 @@ class _ShimmerCard extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
-            const SizedBox(width: 14),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Container(
-                  width: 38,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
             ),
           ],
         ),
@@ -958,26 +935,27 @@ class _MessagesErrorState extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Scaffold(
-      backgroundColor: cs.surface,
-      body: Center(
+    return ColoredBox(
+      color: cs.surface,
+      child: Center(
         child: Padding(
           padding: const EdgeInsets.all(28),
           child: Container(
+            width: double.infinity,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: cs.errorContainer.withOpacity(0.28),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: cs.error.withOpacity(0.18)),
+              color: cs.errorContainer.withOpacity(0.20),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: cs.error.withOpacity(0.12)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 84,
-                  height: 84,
+                  width: 82,
+                  height: 82,
                   decoration: BoxDecoration(
-                    color: cs.errorContainer.withOpacity(0.5),
+                    color: cs.errorContainer.withOpacity(0.40),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
