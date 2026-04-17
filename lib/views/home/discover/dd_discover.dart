@@ -352,20 +352,28 @@ class _DdDiscoverState extends State<DdDiscover>
         child: Transform.rotate(
           angle: angle,
           child: Container(
-            margin: const EdgeInsets.all(20),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            margin: const EdgeInsets.all(22),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              border: Border.all(color: color, width: 4),
-              borderRadius: BorderRadius.circular(8),
+              color: color.withOpacity(0.08),
+              border: Border.all(color: color, width: 3.2),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.12),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Text(
               text,
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: color,
-                fontSize: 28,
+                fontSize: 24,
                 fontWeight: FontWeight.w900,
-                letterSpacing: 2,
+                letterSpacing: 1.8,
               ),
             ),
           ),
@@ -387,19 +395,140 @@ class _DdDiscoverState extends State<DdDiscover>
 
     final dragStrength = (_dragOffset.distance / 220).clamp(0.0, 1.0);
     final scale = 0.94 + (0.04 * dragStrength);
-    final opacity = 0.88 + (0.12 * dragStrength);
+    final opacity = 0.78 + (0.22 * dragStrength);
 
-    return Transform.scale(
-      scale: scale,
-      child: Opacity(
-        opacity: opacity,
-        child: DiscoverCard(user: next),
+    return Transform.translate(
+      offset: const Offset(0, 14),
+      child: Transform.scale(
+        scale: scale,
+        child: Opacity(
+          opacity: opacity,
+          child: DiscoverCard(user: next),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopHeader(ColorScheme cs) {
+    final total = users.length;
+    final current = total == 0 ? 0 : (currentIndex + 1).clamp(0, total);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 6, 18, 14),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest.withOpacity(0.45),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: cs.outlineVariant.withOpacity(0.28),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              cs.primary.withOpacity(0.18),
+                              cs.secondary.withOpacity(0.10),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(
+                          Icons.local_fire_department_rounded,
+                          color: cs.primary,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Descubre conexiones',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              total > 0
+                                  ? 'Perfil $current de $total'
+                                  : 'Buscando personas cercanas',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Material(
+                color: cs.surfaceContainerHighest.withOpacity(0.45),
+                borderRadius: BorderRadius.circular(18),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => MatchPreferencesPage()),
+                    );
+                  },
+                  child: Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: cs.outlineVariant.withOpacity(0.28),
+                      ),
+                    ),
+                    child: Icon(Icons.tune_rounded, color: cs.primary),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: total == 0 ? 0 : current / total,
+              minHeight: 6,
+              backgroundColor: cs.surfaceContainerHighest.withOpacity(0.6),
+              valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     if (loading) {
       return const _DiscoverSkeleton();
     }
@@ -413,54 +542,91 @@ class _DdDiscoverState extends State<DdDiscover>
     }
 
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 16),
+      backgroundColor: cs.surface,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              cs.surface,
+              Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF150A18)
+                  : const Color(0xFFFFF8FB),
+            ],
+          ),
+        ),
+        child: SafeArea(
           child: Column(
             children: [
+              _buildTopHeader(cs),
               Expanded(
-                child: Center(
-                  child: GestureDetector(
-                    onPanStart: _onPanStart,
-                    onPanUpdate: _onPanUpdate,
-                    onPanEnd: _onPanEnd,
-                    child: Stack(
-                      children: [
-                        _buildNextPreviewCard(),
-                        Transform.translate(
-                          offset: _dragOffset,
-                          child: Transform.rotate(
-                            angle: _dragRotation,
-                            child: DiscoverCard(user: users[currentIndex]),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Center(
+                    child: GestureDetector(
+                      onPanStart: _onPanStart,
+                      onPanUpdate: _onPanUpdate,
+                      onPanEnd: _onPanEnd,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: [
+                          _buildNextPreviewCard(),
+                          Transform.translate(
+                            offset: _dragOffset,
+                            child: Transform.rotate(
+                              angle: _dragRotation,
+                              child: DiscoverCard(user: users[currentIndex]),
+                            ),
                           ),
-                        ),
-                        _swipeLabel(
-                          text: "LIKE",
-                          color: Colors.green,
-                          opacity: _likeOpacity(context),
-                          angle: -0.25,
-                          alignment: Alignment.topLeft,
-                        ),
-                        _swipeLabel(
-                          text: "NOPE",
-                          color: Colors.redAccent,
-                          opacity: _nopeOpacity(context),
-                          angle: 0.25,
-                          alignment: Alignment.topRight,
-                        ),
-                        _swipeLabel(
-                          text: "SUPER\nLIKE",
-                          color: Colors.blueAccent,
-                          opacity: _superLikeOpacity(context),
-                          alignment: Alignment.topCenter,
-                        ),
-                      ],
+                          _swipeLabel(
+                            text: "LIKE",
+                            color: Colors.green,
+                            opacity: _likeOpacity(context),
+                            angle: -0.22,
+                            alignment: Alignment.topLeft,
+                          ),
+                          _swipeLabel(
+                            text: "NOPE",
+                            color: Colors.redAccent,
+                            opacity: _nopeOpacity(context),
+                            angle: 0.22,
+                            alignment: Alignment.topRight,
+                          ),
+                          _swipeLabel(
+                            text: "SUPER\nLIKE",
+                            color: Colors.blueAccent,
+                            opacity: _superLikeOpacity(context),
+                            alignment: Alignment.topCenter,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.only(top: 14),
+              const SizedBox(height: 8),
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest.withOpacity(0.36),
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(
+                    color: cs.outlineVariant.withOpacity(0.28),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
                 child: DiscoverActions(
                   disabled: sendingSwipe,
                   onDislike: _onDislike,
@@ -468,7 +634,6 @@ class _DdDiscoverState extends State<DdDiscover>
                   onSuperLike: _onSuperLike,
                 ),
               ),
-              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -514,90 +679,141 @@ class _DiscoverSkeletonState extends State<_DiscoverSkeleton>
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
+      backgroundColor: cs.surface,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 16),
-          child: Column(
-            children: [
-              Expanded(
-                child: Center(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 18),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      color: cs.surface,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 18,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        _ShimmerContainer(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ShimmerContainer(
                           animation: _animation,
                           child: Container(
-                            height: 320,
+                            height: 56,
                             decoration: BoxDecoration(
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(24),
-                              ),
                               color: cs.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(22),
                             ),
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.all(18),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _ShimmerContainer(
-                                animation: _animation,
-                                child: Container(
-                                  width: 180,
-                                  height: 24,
-                                  decoration: BoxDecoration(
-                                    color: cs.surfaceContainerHighest,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              _ShimmerContainer(
-                                animation: _animation,
-                                child: Container(
-                                  width: 140,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    color: cs.surfaceContainerHighest,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              _ShimmerContainer(
-                                animation: _animation,
-                                child: Container(
-                                  width: double.infinity,
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    color: cs.surfaceContainerHighest,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ),
-                              ),
-                            ],
+                      ),
+                      const SizedBox(width: 10),
+                      _ShimmerContainer(
+                        animation: _animation,
+                        child: Container(
+                          width: 54,
+                          height: 54,
+                          decoration: BoxDecoration(
+                            color: cs.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(18),
                           ),
                         ),
-                      ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _ShimmerContainer(
+                    animation: _animation,
+                    child: Container(
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
                     ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 18),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    color: cs.surface,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      _ShimmerContainer(
+                        animation: _animation,
+                        child: Container(
+                          height: 340,
+                          decoration: BoxDecoration(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(28),
+                            ),
+                            color: cs.surfaceContainerHighest,
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _ShimmerContainer(
+                              animation: _animation,
+                              child: Container(
+                                width: 180,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: cs.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _ShimmerContainer(
+                              animation: _animation,
+                              child: Container(
+                                width: 140,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: cs.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _ShimmerContainer(
+                              animation: _animation,
+                              child: Container(
+                                width: double.infinity,
+                                height: 62,
+                                decoration: BoxDecoration(
+                                  color: cs.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
-              Row(
+            ),
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest.withOpacity(0.36),
+                borderRadius: BorderRadius.circular(26),
+              ),
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
@@ -628,9 +844,8 @@ class _DiscoverSkeletonState extends State<_DiscoverSkeleton>
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -648,72 +863,91 @@ class _EmptyDiscoverState extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
+      backgroundColor: cs.surface,
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: cs.primaryContainer.withOpacity(0.3),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.search_rounded,
-                    size: 64,
-                    color: cs.primary,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  '¡No hay más personas cerca!',
-                  style: textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: cs.onSurface,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Ajusta tus preferencias o vuelve más tarde para descubrir nuevas personas',
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: cs.onSurface.withOpacity(0.6),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                FilledButton.icon(
-                  onPressed: () => onRefresh(),
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Buscar más'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: cs.primary,
-                    foregroundColor: cs.onPrimary,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
+            padding: const EdgeInsets.all(28),
+            child: Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest.withOpacity(0.35),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: cs.outlineVariant.withOpacity(0.24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 108,
+                    height: 108,
+                    decoration: BoxDecoration(
+                      color: cs.primary.withOpacity(0.10),
+                      shape: BoxShape.circle,
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                    child: Icon(
+                      Icons.search_rounded,
+                      size: 56,
+                      color: cs.primary,
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => MatchPreferencesPage()),
-                    );
-                  },
-                  icon: const Icon(Icons.tune_rounded),
-                  label: const Text('Ajustar preferencias'),
-                  style: TextButton.styleFrom(foregroundColor: cs.primary),
-                ),
-              ],
+                  const SizedBox(height: 24),
+                  Text(
+                    'No hay más personas cerca',
+                    style: textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: cs.onSurface,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Ajusta tus preferencias o vuelve más tarde para descubrir nuevas personas.',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurfaceVariant,
+                      height: 1.45,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 26),
+                  FilledButton.icon(
+                    onPressed: () => onRefresh(),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Buscar más'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 26,
+                        vertical: 15,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MatchPreferencesPage(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.tune_rounded),
+                    label: const Text('Ajustar preferencias'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 15,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -734,60 +968,69 @@ class _DiscoverErrorState extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
+      backgroundColor: cs.surface,
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: cs.errorContainer.withOpacity(0.3),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.error_outline_rounded,
-                    size: 64,
-                    color: cs.error,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  '¡Ups! Algo salió mal',
-                  style: textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: cs.onSurface,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  message,
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: cs.onSurface.withOpacity(0.7),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                FilledButton.icon(
-                  onPressed: () => onRetry(),
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Reintentar'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: cs.primary,
-                    foregroundColor: cs.onPrimary,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
+            padding: const EdgeInsets.all(28),
+            child: Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: cs.errorContainer.withOpacity(0.24),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: cs.error.withOpacity(0.14)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      color: cs.errorContainer.withOpacity(0.42),
+                      shape: BoxShape.circle,
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                    child: Icon(
+                      Icons.error_outline_rounded,
+                      size: 52,
+                      color: cs.error,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 24),
+                  Text(
+                    'Ups, algo salió mal',
+                    style: textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: cs.onSurface,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    message,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurfaceVariant,
+                      height: 1.45,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 26),
+                  FilledButton.icon(
+                    onPressed: () => onRetry(),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Reintentar'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 26,
+                        vertical: 15,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
