@@ -1,11 +1,13 @@
 import 'dart:ui';
-import 'package:date_and_doing/widgets/user_photo_view.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
 import 'package:date_and_doing/services/multi_chat_websocket_service.dart';
-
+import 'package:date_and_doing/widgets/user_photo_view.dart';
 import 'package:date_and_doing/views/home/dd_home.dart';
+
 import 'dd_chat_page.dart';
 
 const List<Map<String, String>> kReportReasons = [
@@ -36,6 +38,8 @@ class _DdMessagesState extends State<DdMessages> {
 
   int? _myId;
 
+  StreamSubscription<Map<String, dynamic>>? _multiWsEventsSub;
+
   // conversations:
   // {
   //  matchId, otherUserId, nombre, foto,
@@ -50,8 +54,7 @@ class _DdMessagesState extends State<DdMessages> {
   void initState() {
     super.initState();
     _bootstrap();
-
-    _multiWs.events.listen(_onInboxWsEvent);
+    _multiWsEventsSub = _multiWs.events.listen(_onInboxWsEvent);
   }
 
   DateTime _safeParseToLocal(dynamic raw) {
@@ -83,9 +86,21 @@ class _DdMessagesState extends State<DdMessages> {
   }
 
   Future<void> _bootstrap() async {
-    _myId = await _prefs.getUserIdOrThrow();
-    await _loadConversations();
-    await _connectSocketsForVisibleConversations();
+    try {
+      _myId = await _prefs.getUserIdOrThrow();
+      if (!mounted) return;
+
+      await _loadConversations();
+      if (!mounted) return;
+
+      await _connectSocketsForVisibleConversations();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
   }
 
   Future<void> _showReportDialog({
@@ -265,10 +280,13 @@ class _DdMessagesState extends State<DdMessages> {
       _sortConversationsInPlace();
       _rebuildIndex();
     });
+
+    widget.onUnreadCountChanged?.call();
   }
 
   Future<void> _loadConversations() async {
     final firstLoad = _conversations.isEmpty;
+
     if (firstLoad) {
       setState(() {
         _loading = true;
@@ -366,6 +384,8 @@ class _DdMessagesState extends State<DdMessages> {
         _loading = false;
         _rebuildIndex();
       });
+
+      widget.onUnreadCountChanged?.call();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -387,6 +407,8 @@ class _DdMessagesState extends State<DdMessages> {
       c["noLeidos"] = 0;
     });
 
+    widget.onUnreadCountChanged?.call();
+
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -406,6 +428,7 @@ class _DdMessagesState extends State<DdMessages> {
 
   @override
   void dispose() {
+    _multiWsEventsSub?.cancel();
     _multiWs.dispose();
     super.dispose();
   }
@@ -413,10 +436,12 @@ class _DdMessagesState extends State<DdMessages> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const _MessagesSkeleton();
-    if (_error != null)
+    if (_error != null) {
       return _MessagesErrorState(message: _error!, onRetry: _loadConversations);
-    if (_conversations.isEmpty)
+    }
+    if (_conversations.isEmpty) {
       return _EmptyMessagesState(onRefresh: _loadConversations);
+    }
 
     return Scaffold(
       body: RefreshIndicator(

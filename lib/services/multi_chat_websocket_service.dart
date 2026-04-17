@@ -18,9 +18,22 @@ class MultiChatWebSocketService {
   final _connCtrl = StreamController<Map<int, bool>>.broadcast();
   Stream<Map<int, bool>> get connections => _connCtrl.stream;
 
+  bool _isDisposed = false;
+
   bool get isAnyConnected => _channels.isNotEmpty;
 
+  void _emitEvent(Map<String, dynamic> event) {
+    if (_isDisposed || _eventsCtrl.isClosed) return;
+    _eventsCtrl.add(event);
+  }
+
+  void _emitConnection(Map<int, bool> connection) {
+    if (_isDisposed || _connCtrl.isClosed) return;
+    _connCtrl.add(connection);
+  }
+
   Future<void> connectMatch(int matchId) async {
+    if (_isDisposed) return;
     if (_channels.containsKey(matchId)) return;
 
     final accessToken = await _prefs.getAccessToken();
@@ -32,47 +45,55 @@ class MultiChatWebSocketService {
     final channel = WebSocketChannel.connect(uri);
 
     _channels[matchId] = channel;
-    _connCtrl.add({matchId: true});
+    _emitConnection({matchId: true});
 
     _subs[matchId] = channel.stream.listen(
       (data) {
+        if (_isDisposed) return;
+
         try {
           if (data is String) {
             final jsonMap = jsonDecode(data) as Map<String, dynamic>;
 
-            // Normaliza el matchId aunque el payload no lo incluya siempre.
-            jsonMap['__match_id'] ??= jsonMap['ddm_int_id'] ?? jsonMap['match_id'] ?? matchId;
+            jsonMap['__match_id'] ??=
+                jsonMap['ddm_int_id'] ?? jsonMap['match_id'] ?? matchId;
 
-            _eventsCtrl.add(jsonMap);
+            _emitEvent(jsonMap);
           }
         } catch (_) {
           // ignore parse errors
         }
       },
       onError: (_) {
-        _connCtrl.add({matchId: false});
+        _emitConnection({matchId: false});
       },
       onDone: () {
-        _connCtrl.add({matchId: false});
-        // Deja que el caller decida si reconecta.
+        _emitConnection({matchId: false});
       },
+      cancelOnError: false,
     );
   }
 
   Future<void> connectMany(Iterable<int> matchIds) async {
+    if (_isDisposed) return;
+
     for (final id in matchIds) {
       await connectMatch(id);
     }
   }
 
   Future<void> disconnectMatch(int matchId) async {
-    await _subs[matchId]?.cancel();
-    _subs.remove(matchId);
+    final sub = _subs.remove(matchId);
+    if (sub != null) {
+      await sub.cancel();
+    }
 
-    await _channels[matchId]?.sink.close();
-    _channels.remove(matchId);
+    final channel = _channels.remove(matchId);
+    if (channel != null) {
+      await channel.sink.close();
+    }
 
-    _connCtrl.add({matchId: false});
+    _emitConnection({matchId: false});
   }
 
   Future<void> disconnectAll() async {
@@ -84,14 +105,32 @@ class MultiChatWebSocketService {
 
   /// Si quieres marcar read por WS (tu consumer soporta {"type":"read"}).
   void sendRead(int matchId) {
+    if (_isDisposed) return;
+
     final ch = _channels[matchId];
     if (ch == null) return;
+
     ch.sink.add(jsonEncode({"type": "read"}));
   }
 
-  void dispose() {
-    disconnectAll();
-    _eventsCtrl.close();
-    _connCtrl.close();
+  void dispose() async {
+    if (_isDisposed) return;
+    _isDisposed = true;
+
+    final ids = _channels.keys.toList();
+    for (final id in ids) {
+      final sub = _subs.remove(id);
+      if (sub != null) {
+        await sub.cancel();
+      }
+
+      final channel = _channels.remove(id);
+      if (channel != null) {
+        await channel.sink.close();
+      }
+    }
+
+    await _eventsCtrl.close();
+    await _connCtrl.close();
   }
 }

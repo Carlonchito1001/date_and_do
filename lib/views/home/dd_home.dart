@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:ui';
+
+import 'package:flutter/material.dart';
 import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
 import 'package:date_and_doing/views/profile_user/home_profile.dart';
-import 'package:flutter/material.dart';
+
 import 'discover/dd_discover.dart';
 import 'dd_matches.dart';
 import './dd_messages.dart';
@@ -178,13 +180,10 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
               ),
               centerTitle: false,
               // actions: [
-              //   // Botón de notificaciones
               //   _NotificationButton(
               //     icon: Icons.notifications_outlined,
               //     count: 0,
-              //     onTap: () {
-              //       // Mostrar notificaciones
-              //     },
+              //     onTap: () {},
               //   ),
               //   const SizedBox(width: 8),
               // ],
@@ -198,11 +197,11 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
         opacity: _fadeAnimation,
         child: IndexedStack(
           index: _currentIndex,
-          children: const [
-            DdDiscover(),
-            DdMatchesPage(),
-            DdMessages(),
-            HomeProfile(),
+          children: [
+            const DdDiscover(),
+            const DdMatchesPage(),
+            DdMessages(onUnreadCountChanged: _loadUnreadMessagesCount),
+            const HomeProfile(),
           ],
         ),
       ),
@@ -407,7 +406,6 @@ class _NavBarItemState extends State<_NavBarItem>
                 children: [
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
-
                     decoration: BoxDecoration(
                       color: widget.isSelected
                           ? cs.primary.withOpacity(0.2)
