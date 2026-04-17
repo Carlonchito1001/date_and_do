@@ -18,25 +18,18 @@ class DdHome extends StatefulWidget {
 }
 
 class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
-  static const int _messagesTabIndex = 2;
-  static const Duration _unreadRefreshInterval = Duration(seconds: 30);
-
   int _currentIndex = 0;
 
-  // Controladores para animaciones
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
-  // Contadores de notificaciones
   int _matchesCount = 0;
   int _messagesCount = 0;
 
-  // Timer para actualizar mensajes no leídos
   Timer? _unreadMessagesTimer;
   final _api = ApiService();
   final _prefs = SharedPreferencesService();
 
-  // Keys para mantener el estado de cada página
   final List<GlobalKey<NavigatorState>> _navigatorKeys = [
     GlobalKey<NavigatorState>(),
     GlobalKey<NavigatorState>(),
@@ -47,38 +40,21 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-
     _fadeAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
-
     _animationController.forward();
 
     _loadUnreadMessagesCount();
-    _startUnreadMessagesTimerIfNeeded();
-  }
-
-  void _startUnreadMessagesTimerIfNeeded() {
-    _unreadMessagesTimer?.cancel();
-
-    if (_currentIndex == _messagesTabIndex) {
-      return;
-    }
 
     _unreadMessagesTimer = Timer.periodic(
-      _unreadRefreshInterval,
+      const Duration(seconds: 10),
       (_) => _loadUnreadMessagesCount(),
     );
-  }
-
-  void _stopUnreadMessagesTimer() {
-    _unreadMessagesTimer?.cancel();
-    _unreadMessagesTimer = null;
   }
 
   Future<void> _loadUnreadMessagesCount() async {
@@ -93,11 +69,11 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
         return !isRead && receiverId == myId && status == "ACTIVO";
       }).length;
 
-      if (!mounted) return;
-
-      setState(() {
-        _messagesCount = unreadCount;
-      });
+      if (mounted) {
+        setState(() {
+          _messagesCount = unreadCount;
+        });
+      }
     } catch (e) {
       debugPrint("Error loading unread messages: $e");
     }
@@ -105,7 +81,7 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _stopUnreadMessagesTimer();
+    _unreadMessagesTimer?.cancel();
     _animationController.dispose();
     super.dispose();
   }
@@ -113,22 +89,13 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
   void _onItemTapped(int index) {
     if (_currentIndex == index) return;
 
-    final wasOnMessagesTab = _currentIndex == _messagesTabIndex;
-    final goingToMessagesTab = index == _messagesTabIndex;
+    if (_currentIndex == 2) {
+      _loadUnreadMessagesCount();
+    }
 
     setState(() {
       _currentIndex = index;
     });
-
-    if (goingToMessagesTab) {
-      _stopUnreadMessagesTimer();
-      _loadUnreadMessagesCount();
-    } else {
-      if (wasOnMessagesTab) {
-        _loadUnreadMessagesCount();
-      }
-      _startUnreadMessagesTimerIfNeeded();
-    }
 
     _animationController.reset();
     _animationController.forward();
@@ -142,7 +109,6 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
     return Scaffold(
       extendBody: true,
       extendBodyBehindAppBar: true,
-
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight + 8),
         child: ClipRRect(
@@ -202,19 +168,10 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
                 ],
               ),
               centerTitle: false,
-              // actions: [
-              //   _NotificationButton(
-              //     icon: Icons.notifications_outlined,
-              //     count: 0,
-              //     onTap: () {},
-              //   ),
-              //   const SizedBox(width: 8),
-              // ],
             ),
           ),
         ),
       ),
-
       body: FadeTransition(
         opacity: _fadeAnimation,
         child: IndexedStack(
@@ -222,12 +179,14 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
           children: [
             const DdDiscover(),
             const DdMatchesPage(),
-            DdMessages(onUnreadCountChanged: _loadUnreadMessagesCount),
+            DdMessages(
+              onUnreadCountChanged: _loadUnreadMessagesCount,
+              onGoToDiscover: () => _onItemTapped(0),
+            ),
             const HomeProfile(),
           ],
         ),
       ),
-
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: cs.surface,
@@ -295,8 +254,6 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
   }
 }
 
-// ================== NOTIFICATION BUTTON ==================
-
 class _NotificationButton extends StatelessWidget {
   final IconData icon;
   final int count;
@@ -344,8 +301,6 @@ class _NotificationButton extends StatelessWidget {
     );
   }
 }
-
-// ================== CUSTOM NAV BAR ITEM ==================
 
 class _NavBarItem extends StatefulWidget {
   final IconData icon;

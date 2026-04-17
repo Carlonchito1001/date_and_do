@@ -6,7 +6,6 @@ import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
 import 'package:date_and_doing/services/multi_chat_websocket_service.dart';
 import 'package:date_and_doing/widgets/user_photo_view.dart';
-import 'package:date_and_doing/views/home/dd_home.dart';
 
 import 'dd_chat_page.dart';
 
@@ -21,8 +20,9 @@ const List<Map<String, String>> kReportReasons = [
 
 class DdMessages extends StatefulWidget {
   final VoidCallback? onUnreadCountChanged;
+  final VoidCallback? onGoToDiscover;
 
-  const DdMessages({super.key, this.onUnreadCountChanged});
+  const DdMessages({super.key, this.onUnreadCountChanged, this.onGoToDiscover});
 
   @override
   State<DdMessages> createState() => _DdMessagesState();
@@ -40,14 +40,7 @@ class _DdMessagesState extends State<DdMessages> {
 
   StreamSubscription<Map<String, dynamic>>? _multiWsEventsSub;
 
-  // conversations:
-  // {
-  //  matchId, otherUserId, nombre, foto,
-  //  ultimoMensaje, hora, noLeidos, timestamp
-  // }
   List<Map<String, dynamic>> _conversations = [];
-
-  // Para actualizar rápido por matchId
   final Map<int, int> _indexByMatchId = {};
 
   @override
@@ -440,7 +433,10 @@ class _DdMessagesState extends State<DdMessages> {
       return _MessagesErrorState(message: _error!, onRetry: _loadConversations);
     }
     if (_conversations.isEmpty) {
-      return _EmptyMessagesState(onRefresh: _loadConversations);
+      return _EmptyMessagesState(
+        onRefresh: _loadConversations,
+        onGoToDiscover: widget.onGoToDiscover,
+      );
     }
 
     return Scaffold(
@@ -538,8 +534,9 @@ class _DdMessagesState extends State<DdMessages> {
 
 class _EmptyMessagesState extends StatelessWidget {
   final Future<void> Function() onRefresh;
+  final VoidCallback? onGoToDiscover;
 
-  const _EmptyMessagesState({required this.onRefresh});
+  const _EmptyMessagesState({required this.onRefresh, this.onGoToDiscover});
 
   @override
   Widget build(BuildContext context) {
@@ -597,12 +594,7 @@ class _EmptyMessagesState extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       TextButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const DdHome()),
-                          );
-                        },
+                        onPressed: onGoToDiscover,
                         icon: const Icon(Icons.explore_rounded),
                         label: const Text('Descubrir personas'),
                         style: TextButton.styleFrom(
