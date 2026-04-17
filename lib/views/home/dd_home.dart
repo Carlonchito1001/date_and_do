@@ -18,6 +18,9 @@ class DdHome extends StatefulWidget {
 }
 
 class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
+  static const int _messagesTabIndex = 2;
+  static const Duration _unreadRefreshInterval = Duration(seconds: 30);
+
   int _currentIndex = 0;
 
   // Controladores para animaciones
@@ -44,23 +47,38 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
+
     _fadeAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
+
     _animationController.forward();
 
-    // Cargar mensajes no leídos inmediatamente
     _loadUnreadMessagesCount();
+    _startUnreadMessagesTimerIfNeeded();
+  }
 
-    // Actualizar cada 10 segundos
+  void _startUnreadMessagesTimerIfNeeded() {
+    _unreadMessagesTimer?.cancel();
+
+    if (_currentIndex == _messagesTabIndex) {
+      return;
+    }
+
     _unreadMessagesTimer = Timer.periodic(
-      const Duration(seconds: 10),
+      _unreadRefreshInterval,
       (_) => _loadUnreadMessagesCount(),
     );
+  }
+
+  void _stopUnreadMessagesTimer() {
+    _unreadMessagesTimer?.cancel();
+    _unreadMessagesTimer = null;
   }
 
   Future<void> _loadUnreadMessagesCount() async {
@@ -68,7 +86,6 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
       final myId = await _prefs.getUserIdOrThrow();
       final allMessages = await _api.getAllMessages();
 
-      // Contar mensajes no leídos donde yo soy el receptor
       final unreadCount = allMessages.where((m) {
         final isRead = m["ddmsg_bool_read"] == true;
         final receiverId = m["use_int_receiver"];
@@ -76,20 +93,19 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
         return !isRead && receiverId == myId && status == "ACTIVO";
       }).length;
 
-      if (mounted) {
-        setState(() {
-          _messagesCount = unreadCount;
-        });
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _messagesCount = unreadCount;
+      });
     } catch (e) {
-      // Silenciar errores - no es crítico
       debugPrint("Error loading unread messages: $e");
     }
   }
 
   @override
   void dispose() {
-    _unreadMessagesTimer?.cancel();
+    _stopUnreadMessagesTimer();
     _animationController.dispose();
     super.dispose();
   }
@@ -97,14 +113,22 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
   void _onItemTapped(int index) {
     if (_currentIndex == index) return;
 
-    // Si venimos del tab de mensajes (índice 2), actualizar conteo
-    if (_currentIndex == 2) {
-      _loadUnreadMessagesCount();
-    }
+    final wasOnMessagesTab = _currentIndex == _messagesTabIndex;
+    final goingToMessagesTab = index == _messagesTabIndex;
 
     setState(() {
       _currentIndex = index;
     });
+
+    if (goingToMessagesTab) {
+      _stopUnreadMessagesTimer();
+      _loadUnreadMessagesCount();
+    } else {
+      if (wasOnMessagesTab) {
+        _loadUnreadMessagesCount();
+      }
+      _startUnreadMessagesTimerIfNeeded();
+    }
 
     _animationController.reset();
     _animationController.forward();
@@ -119,7 +143,6 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
       extendBody: true,
       extendBodyBehindAppBar: true,
 
-      // AppBar elegante con blur
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight + 8),
         child: ClipRRect(
@@ -192,7 +215,6 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
         ),
       ),
 
-      // Body con animación de fade
       body: FadeTransition(
         opacity: _fadeAnimation,
         child: IndexedStack(
@@ -206,7 +228,6 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
         ),
       ),
 
-      // Bottom Navigation Bar premium
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: cs.surface,
