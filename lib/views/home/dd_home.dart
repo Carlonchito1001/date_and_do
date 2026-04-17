@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:date_and_doing/api/api_service.dart';
@@ -33,13 +32,16 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 260),
       vsync: this,
     );
-    _fadeAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+
+    _fadeAnimation = Tween<double>(begin: 0.94, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
+
     _animationController.forward();
 
     _loadUnreadMessagesCount();
@@ -94,54 +96,74 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
     _animationController.forward();
   }
 
+  String _getSectionTitle() {
+    switch (_currentIndex) {
+      case 0:
+        return "Descubrir";
+      case 1:
+        return "Matches";
+      case 2:
+        return "Mensajes";
+      case 3:
+        return "Mi perfil";
+      default:
+        return "Inicio";
+    }
+  }
+
+  IconData _getSectionIcon() {
+    switch (_currentIndex) {
+      case 0:
+        return Icons.explore_rounded;
+      case 1:
+        return Icons.favorite_rounded;
+      case 2:
+        return Icons.chat_bubble_rounded;
+      case 3:
+        return Icons.person_rounded;
+      default:
+        return Icons.favorite_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      extendBody: true,
-
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight + 8),
-        child: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: AppBar(
-              elevation: 0,
-              backgroundColor: cs.surface.withOpacity(0.7),
-              flexibleSpace: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      cs.surface.withOpacity(0.9),
-                      cs.surface.withOpacity(0.6),
-                    ],
-                  ),
+      backgroundColor: cs.surface,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: cs.surface,
+        surfaceTintColor: Colors.transparent,
+        toolbarHeight: 78,
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    cs.primary.withOpacity(0.16),
+                    cs.secondary.withOpacity(0.10),
+                  ],
                 ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: cs.primary.withOpacity(0.10)),
               ),
-              title: Row(
+              child: Icon(_getSectionIcon(), color: cs.primary, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          cs.primary.withOpacity(0.2),
-                          cs.secondary.withOpacity(0.2),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.favorite_rounded,
-                      color: cs.primary,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
                   ShaderMask(
                     shaderCallback: (bounds) {
                       return LinearGradient(
@@ -151,17 +173,34 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
                     child: const Text(
                       "Date & Do",
                       style: TextStyle(
+                        fontSize: 22,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
-                        fontSize: 24,
+                        letterSpacing: 0.2,
                         color: Colors.white,
+                        height: 1.0,
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _getSectionTitle(),
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant,
+                      height: 1.0,
                     ),
                   ),
                 ],
               ),
-              centerTitle: false,
             ),
+          ],
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            height: 1,
+            color: cs.outlineVariant.withOpacity(0.35),
           ),
         ),
       ),
@@ -180,66 +219,59 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
           ],
         ),
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: cs.surface,
-          boxShadow: [
-            BoxShadow(
-              color: cs.primary.withOpacity(0.1),
-              blurRadius: 20,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Container(
-              height: 64,
-              decoration: BoxDecoration(
-                color: isDark ? cs.surfaceVariant.withOpacity(0.5) : cs.surface,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: cs.primary.withOpacity(0.1),
-                  width: 1,
-                ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: isDark
+                ? cs.surfaceContainerHighest.withOpacity(0.55)
+                : cs.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: cs.outlineVariant.withOpacity(0.35)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.18 : 0.06),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _NavBarItem(
-                    icon: Icons.explore_rounded,
-                    label: "Descubrir",
-                    isSelected: _currentIndex == 0,
-                    onTap: () => _onItemTapped(0),
-                    colorScheme: cs,
-                  ),
-                  _NavBarItem(
-                    icon: Icons.favorite_rounded,
-                    label: "Matches",
-                    isSelected: _currentIndex == 1,
-                    badgeCount: _matchesCount,
-                    onTap: () => _onItemTapped(1),
-                    colorScheme: cs,
-                  ),
-                  _NavBarItem(
-                    icon: Icons.chat_bubble_rounded,
-                    label: "Mensajes",
-                    isSelected: _currentIndex == 2,
-                    badgeCount: _messagesCount,
-                    onTap: () => _onItemTapped(2),
-                    colorScheme: cs,
-                  ),
-                  _NavBarItem(
-                    icon: Icons.person_rounded,
-                    label: "Perfil",
-                    isSelected: _currentIndex == 3,
-                    onTap: () => _onItemTapped(3),
-                    colorScheme: cs,
-                  ),
-                ],
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _NavBarItem(
+                icon: Icons.explore_rounded,
+                label: "Descubrir",
+                isSelected: _currentIndex == 0,
+                onTap: () => _onItemTapped(0),
+                colorScheme: cs,
               ),
-            ),
+              _NavBarItem(
+                icon: Icons.favorite_rounded,
+                label: "Matches",
+                isSelected: _currentIndex == 1,
+                badgeCount: _matchesCount,
+                onTap: () => _onItemTapped(1),
+                colorScheme: cs,
+              ),
+              _NavBarItem(
+                icon: Icons.chat_bubble_rounded,
+                label: "Mensajes",
+                isSelected: _currentIndex == 2,
+                badgeCount: _messagesCount,
+                onTap: () => _onItemTapped(2),
+                colorScheme: cs,
+              ),
+              _NavBarItem(
+                icon: Icons.person_rounded,
+                label: "Perfil",
+                isSelected: _currentIndex == 3,
+                onTap: () => _onItemTapped(3),
+                colorScheme: cs,
+              ),
+            ],
           ),
         ),
       ),
@@ -277,12 +309,12 @@ class _NavBarItemState extends State<_NavBarItem>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 180),
       vsync: this,
     );
     _scaleAnimation = Tween<double>(
       begin: 1.0,
-      end: 0.9,
+      end: 0.94,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
@@ -306,50 +338,40 @@ class _NavBarItemState extends State<_NavBarItem>
       child: ScaleTransition(
         scale: _scaleAnimation,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 240),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            gradient: widget.isSelected
-                ? LinearGradient(
-                    colors: [
-                      cs.primary.withOpacity(0.15),
-                      cs.secondary.withOpacity(0.1),
-                    ],
-                  )
-                : null,
-            borderRadius: BorderRadius.circular(16),
+            color: widget.isSelected
+                ? cs.primary.withOpacity(0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    decoration: BoxDecoration(
-                      color: widget.isSelected
-                          ? cs.primary.withOpacity(0.2)
-                          : Colors.transparent,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      widget.icon,
-                      color: widget.isSelected
-                          ? cs.primary
-                          : cs.onSurface.withOpacity(0.5),
-                      size: widget.isSelected ? 26 : 24,
-                    ),
+                  Icon(
+                    widget.icon,
+                    color: widget.isSelected
+                        ? cs.primary
+                        : cs.onSurfaceVariant.withOpacity(0.8),
+                    size: widget.isSelected ? 26 : 24,
                   ),
                   if (widget.badgeCount > 0)
                     Positioned(
-                      right: 0,
-                      top: 0,
+                      right: -8,
+                      top: -6,
                       child: Container(
-                        padding: const EdgeInsets.all(4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: cs.error,
-                          shape: BoxShape.circle,
+                          borderRadius: BorderRadius.circular(999),
                           border: Border.all(color: cs.surface, width: 2),
                         ),
                         constraints: const BoxConstraints(
@@ -361,7 +383,7 @@ class _NavBarItemState extends State<_NavBarItem>
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -369,13 +391,13 @@ class _NavBarItemState extends State<_NavBarItem>
                     ),
                 ],
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 220),
                 style: TextStyle(
                   color: widget.isSelected
                       ? cs.primary
-                      : cs.onSurface.withOpacity(0.5),
+                      : cs.onSurfaceVariant.withOpacity(0.8),
                   fontSize: 11,
                   fontWeight: widget.isSelected
                       ? FontWeight.w700
