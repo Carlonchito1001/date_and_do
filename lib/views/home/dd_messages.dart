@@ -1,10 +1,10 @@
-import 'dart:ui';
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:date_and_doing/api/api_service.dart';
-import 'package:date_and_doing/services/shared_preferences_service.dart';
 import 'package:date_and_doing/services/multi_chat_websocket_service.dart';
+import 'package:date_and_doing/services/shared_preferences_service.dart';
 import 'package:date_and_doing/widgets/user_photo_view.dart';
 
 import 'dd_chat_page.dart';
@@ -35,11 +35,21 @@ class _DdMessagesState extends State<DdMessages> {
 
   bool _loading = true;
   String? _error;
-
   int? _myId;
 
   StreamSubscription<Map<String, dynamic>>? _multiWsEventsSub;
 
+  // {
+  //   matchId,
+  //   otherUserId,
+  //   nombre,
+  //   fotoBase64,
+  //   fotoFallbackUrl,
+  //   ultimoMensaje,
+  //   hora,
+  //   noLeidos,
+  //   timestamp
+  // }
   List<Map<String, dynamic>> _conversations = [];
   final Map<int, int> _indexByMatchId = {};
 
@@ -78,6 +88,13 @@ class _DdMessagesState extends State<DdMessages> {
     );
   }
 
+  void _rebuildIndex() {
+    _indexByMatchId.clear();
+    for (int i = 0; i < _conversations.length; i++) {
+      _indexByMatchId[_conversations[i]["matchId"] as int] = i;
+    }
+  }
+
   Future<void> _bootstrap() async {
     try {
       _myId = await _prefs.getUserIdOrThrow();
@@ -94,6 +111,61 @@ class _DdMessagesState extends State<DdMessages> {
         _error = e.toString();
       });
     }
+  }
+
+  Future<void> _connectSocketsForVisibleConversations() async {
+    final ids = _conversations.map((c) => c["matchId"] as int).toList();
+    await _multiWs.connectMany(ids);
+  }
+
+  void _onInboxWsEvent(Map<String, dynamic> event) {
+    if (!mounted) return;
+
+    final type = (event["type"] ?? "").toString();
+    if (type != "chat.message") return;
+
+    final matchId = _asInt(
+      event["ddm_int_id"] ?? event["__match_id"] ?? event["match_id"],
+    );
+    if (matchId == null) return;
+
+    final body = (event["body"] ?? "").toString();
+    if (body.isEmpty) return;
+
+    final createdAt = _safeParseToLocal(event["created_at"]);
+    final receiverId = _asInt(
+      event["receiver_id"] ?? event["use_int_receiver"],
+    );
+    final isForMe =
+        (_myId != null && receiverId != null && receiverId == _myId);
+
+    if (!_indexByMatchId.containsKey(matchId)) {
+      _loadConversations();
+      return;
+    }
+
+    setState(() {
+      final idx = _indexByMatchId[matchId]!;
+      final old = _conversations[idx];
+
+      final newUnread = (old["noLeidos"] as int? ?? 0) + (isForMe ? 1 : 0);
+
+      final updated = {
+        ...old,
+        "ultimoMensaje": body,
+        "hora": _formatHour(createdAt),
+        "timestamp": createdAt.millisecondsSinceEpoch,
+        "noLeidos": newUnread,
+      };
+
+      _conversations.removeAt(idx);
+      _conversations.insert(0, updated);
+
+      _sortConversationsInPlace();
+      _rebuildIndex();
+    });
+
+    widget.onUnreadCountChanged?.call();
   }
 
   Future<void> _showReportDialog({
@@ -221,62 +293,6 @@ class _DdMessagesState extends State<DdMessages> {
     detailsController.dispose();
   }
 
-  Future<void> _connectSocketsForVisibleConversations() async {
-    final ids = _conversations.map((c) => c["matchId"] as int).toList();
-    await _multiWs.connectMany(ids);
-  }
-
-  void _onInboxWsEvent(Map<String, dynamic> event) {
-    if (!mounted) return;
-
-    final type = (event["type"] ?? "").toString();
-    if (type != "chat.message") return;
-
-    final matchId = _asInt(
-      event["ddm_int_id"] ?? event["__match_id"] ?? event["match_id"],
-    );
-    if (matchId == null) return;
-
-    final body = (event["body"] ?? "").toString();
-    if (body.isEmpty) return;
-
-    final createdAt = _safeParseToLocal(event["created_at"]);
-
-    final receiverId = _asInt(
-      event["receiver_id"] ?? event["use_int_receiver"],
-    );
-    final isForMe =
-        (_myId != null && receiverId != null && receiverId == _myId);
-
-    if (!_indexByMatchId.containsKey(matchId)) {
-      _loadConversations();
-      return;
-    }
-
-    setState(() {
-      final idx = _indexByMatchId[matchId]!;
-      final old = _conversations[idx];
-
-      final newUnread = (old["noLeidos"] as int? ?? 0) + (isForMe ? 1 : 0);
-
-      final updated = {
-        ...old,
-        "ultimoMensaje": body,
-        "hora": _formatHour(createdAt),
-        "timestamp": createdAt.millisecondsSinceEpoch,
-        "noLeidos": newUnread,
-      };
-
-      _conversations.removeAt(idx);
-      _conversations.insert(0, updated);
-
-      _sortConversationsInPlace();
-      _rebuildIndex();
-    });
-
-    widget.onUnreadCountChanged?.call();
-  }
-
   Future<void> _loadConversations() async {
     final firstLoad = _conversations.isEmpty;
 
@@ -364,11 +380,7 @@ class _DdMessagesState extends State<DdMessages> {
         });
       });
 
-      conversations.sort(
-        (a, b) => ((b["timestamp"] as int?) ?? 0).compareTo(
-          (a["timestamp"] as int?) ?? 0,
-        ),
-      );
+      _sortConversationsInPlace();
 
       if (!mounted) return;
 
@@ -385,13 +397,6 @@ class _DdMessagesState extends State<DdMessages> {
         _error = e.toString();
         _loading = false;
       });
-    }
-  }
-
-  void _rebuildIndex() {
-    _indexByMatchId.clear();
-    for (int i = 0; i < _conversations.length; i++) {
-      _indexByMatchId[_conversations[i]["matchId"] as int] = i;
     }
   }
 
@@ -429,9 +434,11 @@ class _DdMessagesState extends State<DdMessages> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const _MessagesSkeleton();
+
     if (_error != null) {
       return _MessagesErrorState(message: _error!, onRetry: _loadConversations);
     }
+
     if (_conversations.isEmpty) {
       return _EmptyMessagesState(
         onRefresh: _loadConversations,
@@ -588,7 +595,7 @@ class _EmptyMessagesState extends StatelessWidget {
                       ),
                       const SizedBox(height: 32),
                       FilledButton.icon(
-                        onPressed: () => onRefresh(),
+                        onPressed: onRefresh,
                         icon: const Icon(Icons.refresh_rounded),
                         label: const Text('Actualizar'),
                       ),
