@@ -39,17 +39,6 @@ class _DdMessagesState extends State<DdMessages> {
 
   StreamSubscription<Map<String, dynamic>>? _multiWsEventsSub;
 
-  // {
-  //   matchId,
-  //   otherUserId,
-  //   nombre,
-  //   fotoBase64,
-  //   fotoFallbackUrl,
-  //   ultimoMensaje,
-  //   hora,
-  //   noLeidos,
-  //   timestamp
-  // }
   List<Map<String, dynamic>> _conversations = [];
   final Map<int, int> _indexByMatchId = {};
 
@@ -183,6 +172,9 @@ class _DdMessagesState extends State<DdMessages> {
         return StatefulBuilder(
           builder: (context, setLocalState) {
             return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
               title: Text("Reportar a $userName"),
               content: SingleChildScrollView(
                 child: Column(
@@ -209,8 +201,10 @@ class _DdMessagesState extends State<DdMessages> {
                                 selectedReason = value;
                               });
                             },
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -218,10 +212,12 @@ class _DdMessagesState extends State<DdMessages> {
                       controller: detailsController,
                       enabled: !isSubmitting,
                       maxLines: 4,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: "Detalles adicionales",
                         hintText: "Cuéntanos qué pasó",
-                        border: OutlineInputBorder(),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                     ),
                   ],
@@ -275,6 +271,11 @@ class _DdMessagesState extends State<DdMessages> {
                             );
                           }
                         },
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
                   child: isSubmitting
                       ? const SizedBox(
                           width: 18,
@@ -446,91 +447,258 @@ class _DdMessagesState extends State<DdMessages> {
       );
     }
 
+    final cs = Theme.of(context).colorScheme;
+
     return Scaffold(
+      backgroundColor: cs.surface,
       body: RefreshIndicator(
         onRefresh: () async {
           await _loadConversations();
           await _connectSocketsForVisibleConversations();
         },
         child: ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           itemCount: _conversations.length,
-          separatorBuilder: (_, __) => const Divider(indent: 72),
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, i) {
             final chat = _conversations[i];
+            final unreadCount = (chat["noLeidos"] as int?) ?? 0;
+            final hasUnread = unreadCount > 0;
 
-            return ListTile(
+            return _ConversationCard(
+              nombre: chat["nombre"]?.toString() ?? "Usuario",
+              ultimoMensaje: chat["ultimoMensaje"]?.toString() ?? "",
+              hora: chat["hora"]?.toString() ?? "",
+              unreadCount: unreadCount,
+              fotoBase64: chat["fotoBase64"]?.toString(),
+              fotoFallbackUrl: chat["fotoFallbackUrl"]?.toString(),
+              hasUnread: hasUnread,
               onTap: () => _openChat(chat),
-              leading: CircleAvatar(
-                backgroundColor: Colors.grey.shade300,
-                child: ClipOval(
-                  child: UserPhotoView(
-                    base64String: chat["fotoBase64"]?.toString(),
-                    fallbackUrl: chat["fotoFallbackUrl"]?.toString(),
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
-                    errorWidget: const Icon(Icons.person),
-                  ),
-                ),
+              onReport: () async {
+                await Future.delayed(const Duration(milliseconds: 120));
+                if (!mounted) return;
+
+                await _showReportDialog(
+                  matchId: chat["matchId"] as int,
+                  userName: (chat["nombre"] ?? "usuario").toString(),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ConversationCard extends StatelessWidget {
+  final String nombre;
+  final String ultimoMensaje;
+  final String hora;
+  final int unreadCount;
+  final String? fotoBase64;
+  final String? fotoFallbackUrl;
+  final bool hasUnread;
+  final VoidCallback onTap;
+  final Future<void> Function() onReport;
+
+  const _ConversationCard({
+    required this.nombre,
+    required this.ultimoMensaje,
+    required this.hora,
+    required this.unreadCount,
+    required this.fotoBase64,
+    required this.fotoFallbackUrl,
+    required this.hasUnread,
+    required this.onTap,
+    required this.onReport,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: hasUnread
+                ? cs.primary.withOpacity(0.06)
+                : cs.surfaceContainerHighest.withOpacity(0.35),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: hasUnread
+                  ? cs.primary.withOpacity(0.20)
+                  : cs.outlineVariant.withOpacity(0.35),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
-              title: Text(chat["nombre"]),
-              subtitle: Text(
-                chat["ultimoMensaje"],
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(chat["hora"], style: const TextStyle(fontSize: 10)),
-                      if ((chat["noLeidos"] as int) > 0)
-                        Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.pinkAccent,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            "${chat["noLeidos"]}",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                            ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: Row(
+              children: [
+                Stack(
+                  children: [
+                    Container(
+                      width: 58,
+                      height: 58,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: hasUnread
+                              ? cs.primary.withOpacity(0.35)
+                              : cs.outlineVariant.withOpacity(0.35),
+                          width: 2,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: UserPhotoView(
+                          base64String: fotoBase64,
+                          fallbackUrl: fotoFallbackUrl,
+                          width: 58,
+                          height: 58,
+                          fit: BoxFit.cover,
+                          errorWidget: Icon(
+                            Icons.person,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
-                    ],
-                  ),
-                  PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == "report") {
-                        await Future.delayed(const Duration(milliseconds: 120));
-                        if (!mounted) return;
-
-                        await _showReportDialog(
-                          matchId: chat["matchId"] as int,
-                          userName: (chat["nombre"] ?? "usuario").toString(),
-                        );
-                      }
-                    },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem<String>(
-                        value: "report",
-                        child: Text("Reportar usuario"),
+                      ),
+                    ),
+                    if (hasUnread)
+                      Positioned(
+                        right: 2,
+                        top: 2,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: cs.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: cs.surface, width: 2),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        nombre,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: hasUnread
+                              ? FontWeight.w800
+                              : FontWeight.w700,
+                          color: cs.onSurface,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        ultimoMensaje.isEmpty
+                            ? 'Sin mensajes aún'
+                            : ultimoMensaje,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          height: 1.25,
+                          color: hasUnread
+                              ? cs.onSurface.withOpacity(0.86)
+                              : cs.onSurfaceVariant,
+                          fontWeight: hasUnread
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                        ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            );
-          },
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      hora,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: hasUnread
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                        color: hasUnread
+                            ? cs.primary
+                            : cs.onSurfaceVariant.withOpacity(0.8),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (unreadCount > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [cs.primary, cs.secondary],
+                              ),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              unreadCount > 99 ? '99+' : '$unreadCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        PopupMenuButton<String>(
+                          tooltip: 'Opciones',
+                          onSelected: (value) async {
+                            if (value == "report") {
+                              await onReport();
+                            }
+                          },
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          icon: Icon(
+                            Icons.more_vert_rounded,
+                            color: cs.onSurfaceVariant,
+                            size: 20,
+                          ),
+                          itemBuilder: (context) => const [
+                            PopupMenuItem<String>(
+                              value: "report",
+                              child: Text("Reportar usuario"),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -551,6 +719,7 @@ class _EmptyMessagesState extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
+      backgroundColor: cs.surface,
       body: RefreshIndicator(
         onRefresh: onRefresh,
         child: CustomScrollView(
@@ -560,52 +729,77 @@ class _EmptyMessagesState extends StatelessWidget {
               hasScrollBody: false,
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(32),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 32,
+                  ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(24),
+                        width: 110,
+                        height: 110,
                         decoration: BoxDecoration(
-                          color: cs.primaryContainer.withOpacity(0.3),
                           shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [
+                              cs.primary.withOpacity(0.18),
+                              cs.secondary.withOpacity(0.12),
+                            ],
+                          ),
                         ),
                         child: Icon(
                           Icons.chat_bubble_outline_rounded,
-                          size: 64,
+                          size: 52,
                           color: cs.primary,
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 28),
                       Text(
-                        '¡No tienes mensajes aún!',
-                        style: textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
+                        'Aún no tienes mensajes',
+                        style: textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
                           color: cs.onSurface,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Text(
-                        'Cuando hagas match con alguien, podrás chatear aquí',
+                        'Cuando hagas match con alguien, tus conversaciones aparecerán aquí.',
                         style: textTheme.bodyMedium?.copyWith(
-                          color: cs.onSurface.withOpacity(0.6),
+                          color: cs.onSurfaceVariant,
+                          height: 1.45,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 28),
                       FilledButton.icon(
                         onPressed: onRefresh,
                         icon: const Icon(Icons.refresh_rounded),
                         label: const Text('Actualizar'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 12),
-                      TextButton.icon(
+                      OutlinedButton.icon(
                         onPressed: onGoToDiscover,
                         icon: const Icon(Icons.explore_rounded),
                         label: const Text('Descubrir personas'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: cs.primary,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                       ),
                     ],
@@ -638,7 +832,7 @@ class _MessagesSkeletonState extends State<_MessagesSkeleton>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1400),
       vsync: this,
     )..repeat();
     _animation = Tween<double>(
@@ -655,52 +849,97 @@ class _MessagesSkeletonState extends State<_MessagesSkeleton>
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return Scaffold(
       body: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         itemCount: 6,
-        separatorBuilder: (_, __) => const Divider(indent: 72),
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, i) {
-          return _ShimmerContainer(
-            animation: _animation,
-            child: ListTile(
-              leading: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              title: Container(
-                width: 120,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              subtitle: Container(
-                width: 200,
-                height: 14,
-                margin: const EdgeInsets.only(top: 4),
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              trailing: Container(
-                width: 40,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(4),
-                ),
+          return _ShimmerCard(animation: _animation);
+        },
+      ),
+    );
+  }
+}
+
+class _ShimmerCard extends StatelessWidget {
+  final Animation<double> animation;
+
+  const _ShimmerCard({required this.animation});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return _ShimmerContainer(
+      animation: animation,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest.withOpacity(0.35),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.30)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest,
+                shape: BoxShape.circle,
               ),
             ),
-          );
-        },
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 140,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    height: 13,
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  width: 38,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -710,7 +949,7 @@ class _MessagesSkeletonState extends State<_MessagesSkeleton>
 
 class _MessagesErrorState extends StatelessWidget {
   final String message;
-  final VoidCallback onRetry;
+  final Future<void> Function() onRetry;
 
   const _MessagesErrorState({required this.message, required this.onRetry});
 
@@ -720,48 +959,68 @@ class _MessagesErrorState extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
+      backgroundColor: cs.surface,
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: cs.errorContainer.withOpacity(0.3),
-                  shape: BoxShape.circle,
+          padding: const EdgeInsets.all(28),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: cs.errorContainer.withOpacity(0.28),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: cs.error.withOpacity(0.18)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 84,
+                  height: 84,
+                  decoration: BoxDecoration(
+                    color: cs.errorContainer.withOpacity(0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.error_outline_rounded,
+                    size: 42,
+                    color: cs.error,
+                  ),
                 ),
-                child: Icon(
-                  Icons.error_outline_rounded,
-                  size: 64,
-                  color: cs.error,
+                const SizedBox(height: 22),
+                Text(
+                  'Ups, algo salió mal',
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurface,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                '¡Ups! Algo salió mal',
-                style: textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: cs.onSurface,
+                const SizedBox(height: 10),
+                Text(
+                  message,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: cs.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                message,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: cs.onSurface.withOpacity(0.7),
+                const SizedBox(height: 22),
+                FilledButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Reintentar'),
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 14,
+                    ),
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              FilledButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Reintentar'),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -791,7 +1050,7 @@ class _ShimmerContainer extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: [
                 cs.surfaceContainerHighest,
-                cs.surfaceContainerHighest.withOpacity(0.5),
+                cs.surfaceContainerHighest.withOpacity(0.45),
                 cs.surfaceContainerHighest,
               ],
               stops: const [0.0, 0.5, 1.0],

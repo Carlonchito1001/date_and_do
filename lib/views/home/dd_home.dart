@@ -101,7 +101,7 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
 
     return Scaffold(
       extendBody: true,
-      extendBodyBehindAppBar: true,
+
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight + 8),
         child: ClipRRect(
