@@ -30,13 +30,6 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
   final _api = ApiService();
   final _prefs = SharedPreferencesService();
 
-  final List<GlobalKey<NavigatorState>> _navigatorKeys = [
-    GlobalKey<NavigatorState>(),
-    GlobalKey<NavigatorState>(),
-    GlobalKey<NavigatorState>(),
-    GlobalKey<NavigatorState>(),
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -247,54 +240,6 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NotificationButton extends StatelessWidget {
-  final IconData icon;
-  final int count;
-  final VoidCallback onTap;
-
-  const _NotificationButton({
-    required this.icon,
-    required this.count,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          child: Stack(
-            children: [
-              Icon(icon, color: cs.onSurface.withOpacity(0.8), size: 24),
-              if (count > 0)
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: cs.error,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: cs.surface, width: 1.5),
-                    ),
-                  ),
-                ),
-            ],
           ),
         ),
       ),
