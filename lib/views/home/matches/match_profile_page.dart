@@ -26,12 +26,6 @@ class MatchProfilePage extends StatefulWidget {
 class _MatchProfilePageState extends State<MatchProfilePage> {
   final ApiService _api = ApiService();
 
-  @override
-  void dispose() {
-    _photoController.dispose();
-    super.dispose();
-  }
-
   bool _loading = true;
   String? _error;
   MatchProfileModel? _profile;
@@ -43,6 +37,12 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
     super.initState();
     _photoController = PageController();
     _loadProfile();
+  }
+
+  @override
+  void dispose() {
+    _photoController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadProfile() async {
@@ -72,6 +72,7 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Text("Cita aún no disponible"),
         content: Text(
           "Para proponer una cita, ambos deben conversar durante al menos 5 días válidos.\n\n"
@@ -158,6 +159,7 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
     String selectedReason = "SPAM";
     final detailsController = TextEditingController();
     bool isSubmitting = false;
+    final cs = Theme.of(context).colorScheme;
 
     await showDialog(
       context: context,
@@ -166,13 +168,26 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
         return StatefulBuilder(
           builder: (context, setLocalState) {
             return AlertDialog(
-              title: const Text("Reportar usuario"),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              backgroundColor: cs.surface,
+              title: const Text(
+                "Reportar usuario",
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Selecciona un motivo"),
+                    Text(
+                      "Selecciona un motivo",
+                      style: TextStyle(
+                        color: cs.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: selectedReason,
@@ -192,8 +207,13 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
                                 selectedReason = value;
                               });
                             },
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: cs.surfaceContainerHighest.withOpacity(0.45),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -201,10 +221,15 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
                       controller: detailsController,
                       enabled: !isSubmitting,
                       maxLines: 4,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: "Detalles adicionales",
                         hintText: "Cuéntanos qué pasó",
-                        border: OutlineInputBorder(),
+                        filled: true,
+                        fillColor: cs.surfaceContainerHighest.withOpacity(0.45),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
                     ),
                   ],
@@ -257,6 +282,11 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
                             );
                           }
                         },
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
                   child: isSubmitting
                       ? const SizedBox(
                           width: 18,
@@ -330,38 +360,11 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
     final textTheme = Theme.of(context).textTheme;
 
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const _MatchProfileSkeleton();
     }
 
     if (_error != null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text("Detalle del match")),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline_rounded, size: 56),
-                const SizedBox(height: 12),
-                Text(
-                  "No se pudo cargar el perfil",
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(_error!, textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: _loadProfile,
-                  child: const Text("Reintentar"),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+      return _MatchProfileErrorState(message: _error!, onRetry: _loadProfile);
     }
 
     final p = _profile!;
@@ -375,7 +378,7 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
           CustomScrollView(
             slivers: [
               SliverAppBar(
-                expandedHeight: 460,
+                expandedHeight: 500,
                 pinned: true,
                 backgroundColor: Colors.black,
                 foregroundColor: Colors.white,
@@ -388,6 +391,9 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
                         await _showReportDialog();
                       }
                     },
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
                     itemBuilder: (context) => const [
                       PopupMenuItem<String>(
                         value: "report",
@@ -451,25 +457,23 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
                           child: const Icon(Icons.person_rounded, size: 90),
                         ),
 
-                      IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.bottomCenter,
-                              end: Alignment.topCenter,
-                              colors: [
-                                Colors.black.withOpacity(0.78),
-                                Colors.black.withOpacity(0.22),
-                                Colors.transparent,
-                              ],
-                            ),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withOpacity(0.08),
+                              Colors.black.withOpacity(0.20),
+                              Colors.black.withOpacity(0.78),
+                            ],
                           ),
                         ),
                       ),
 
                       if (photos.length > 1)
                         Positioned(
-                          top: 60,
+                          top: 62,
                           left: 16,
                           right: 16,
                           child: IgnorePointer(
@@ -506,7 +510,7 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.45),
+                                color: Colors.black.withOpacity(0.42),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
@@ -523,7 +527,7 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
 
                       if (photos.length > 1)
                         Positioned(
-                          bottom: 95,
+                          bottom: 120,
                           left: 20,
                           child: IgnorePointer(
                             child: Container(
@@ -550,7 +554,7 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
                       Positioned(
                         left: 20,
                         right: 20,
-                        bottom: 24,
+                        bottom: 28,
                         child: IgnorePointer(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -559,35 +563,37 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
                                 p.otherUser.age.trim().isNotEmpty
                                     ? "${p.otherUser.fullName}, ${p.otherUser.age}"
                                     : p.otherUser.fullName,
-                                style: textTheme.headlineSmall?.copyWith(
+                                style: textTheme.headlineMedium?.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w900,
+                                  height: 1.0,
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              if (p.otherUser.city.isNotEmpty ||
-                                  p.otherUser.country.isNotEmpty)
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.location_on_rounded,
-                                      color: Colors.white,
-                                      size: 18,
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if (p.otherUser.city.isNotEmpty ||
+                                      p.otherUser.country.isNotEmpty)
+                                    _HeroInfoChip(
+                                      icon: Icons.location_on_rounded,
+                                      label:
+                                          [
+                                                p.otherUser.city,
+                                                p.otherUser.country,
+                                              ]
+                                              .where((e) => e.trim().isNotEmpty)
+                                              .join(", "),
                                     ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        [p.otherUser.city, p.otherUser.country]
-                                            .where((e) => e.trim().isNotEmpty)
-                                            .join(", "),
-                                        style: textTheme.bodyMedium?.copyWith(
-                                          color: Colors.white.withOpacity(0.92),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
+                                  if ((p.ddProfile?.job.trim().isNotEmpty ??
+                                      false))
+                                    _HeroInfoChip(
+                                      icon: Icons.work_rounded,
+                                      label: p.ddProfile!.job,
                                     ),
-                                  ],
-                                ),
+                                ],
+                              ),
                             ],
                           ),
                         ),
@@ -599,27 +605,29 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
 
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 140),
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 140),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _SectionCard(
                         title: "Sobre ${p.otherUser.fullName.split(' ').first}",
+                        icon: Icons.favorite_outline_rounded,
                         child: Text(
                           _displayBio(p),
                           style: textTheme.bodyMedium?.copyWith(
-                            color: cs.onSurface.withOpacity(0.85),
-                            height: 1.45,
+                            color: cs.onSurface.withOpacity(0.88),
+                            height: 1.5,
                           ),
                         ),
                       ),
                       const SizedBox(height: 16),
                       _SectionCard(
                         title: "Detalles",
+                        icon: Icons.badge_rounded,
                         child: Column(
                           children: [
                             _InfoRow(
-                              icon: Icons.badge_rounded,
+                              icon: Icons.work_rounded,
                               label: "Ocupación",
                               value:
                                   (p.ddProfile?.job.trim().isNotEmpty == true)
@@ -631,7 +639,7 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
                                   ? p.otherUser.occupation!
                                   : "No especificado",
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 14),
                             _InfoRow(
                               icon: Icons.favorite_outline_rounded,
                               label: "Busca",
@@ -641,7 +649,7 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
                                   ? p.ddProfile!.lookingFor
                                   : "No especificado",
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 14),
                             _InfoRow(
                               icon: Icons.person_outline_rounded,
                               label: "Género",
@@ -660,6 +668,7 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
                       const SizedBox(height: 16),
                       _SectionCard(
                         title: "Intereses",
+                        icon: Icons.interests_rounded,
                         child: interests.isEmpty
                             ? Text(
                                 "No se registraron intereses todavía.",
@@ -711,54 +720,75 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
             bottom: 16,
             child: SafeArea(
               top: false,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _openCreateDate,
-                          icon: const Icon(Icons.event_rounded),
-                          label: Text(
-                            p.dateEnabled
-                                ? "Proponer cita"
-                                : "Disponible en ${p.remainingChatDaysForDate} día(s)",
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(54),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _openChat,
-                          icon: const Icon(Icons.chat_rounded),
-                          label: const Text("Chatear"),
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(54),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cs.surface.withOpacity(0.96),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: cs.outlineVariant.withOpacity(0.24),
                   ),
-                  if (!p.dateEnabled)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        "Llevan ${p.chatDaysCount} día(s) válidos de conversación. Necesitan 5 para crear una cita.",
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
                     ),
-                ],
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _openCreateDate,
+                            icon: const Icon(Icons.event_rounded),
+                            label: Text(
+                              p.dateEnabled
+                                  ? "Proponer cita"
+                                  : "Disponible en ${p.remainingChatDaysForDate} día(s)",
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(54),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _openChat,
+                            icon: const Icon(Icons.chat_rounded),
+                            label: const Text("Chatear"),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(54),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (!p.dateEnabled)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Text(
+                          "Llevan ${p.chatDaysCount} día(s) válidos de conversación. Necesitan 5 para crear una cita.",
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: cs.onSurfaceVariant,
+                                height: 1.35,
+                              ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -876,9 +906,14 @@ class _PhotoGalleryPageState extends State<_PhotoGalleryPage> {
 
 class _SectionCard extends StatelessWidget {
   final String title;
+  final IconData icon;
   final Widget child;
 
-  const _SectionCard({required this.title, required this.child});
+  const _SectionCard({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -887,10 +922,10 @@ class _SectionCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: cs.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -902,11 +937,29 @@ class _SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: cs.primary.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 18, color: cs.primary),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           child,
         ],
       ),
@@ -932,16 +985,24 @@ class _InfoRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: cs.primary),
-        const SizedBox(width: 10),
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHighest.withOpacity(0.55),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, size: 18, color: cs.primary),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: TextStyle(color: cs.onSurface, fontSize: 14, height: 1.4),
+              style: TextStyle(color: cs.onSurface, fontSize: 14, height: 1.45),
               children: [
                 TextSpan(
                   text: "$label: ",
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
                 TextSpan(text: value),
               ],
@@ -949,6 +1010,43 @@ class _InfoRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _HeroInfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _HeroInfoChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withOpacity(0.20)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 15),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -984,5 +1082,204 @@ class _SinglePhotoViewerPage extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _MatchProfileSkeleton extends StatefulWidget {
+  const _MatchProfileSkeleton();
+
+  @override
+  State<_MatchProfileSkeleton> createState() => _MatchProfileSkeletonState();
+}
+
+class _MatchProfileSkeletonState extends State<_MatchProfileSkeleton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat();
+    _animation = Tween<double>(
+      begin: -1.0,
+      end: 2.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      backgroundColor: cs.surface,
+      body: Column(
+        children: [
+          _ShimmerContainer(
+            animation: _animation,
+            child: Container(height: 430, color: cs.surfaceContainerHighest),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(18),
+              children: List.generate(
+                3,
+                (_) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _ShimmerContainer(
+                    animation: _animation,
+                    child: Container(
+                      height: 150,
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MatchProfileErrorState extends StatelessWidget {
+  final String message;
+  final Future<void> Function() onRetry;
+
+  const _MatchProfileErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Scaffold(
+      backgroundColor: cs.surface,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Container(
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: cs.errorContainer.withOpacity(0.24),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: cs.error.withOpacity(0.14)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 96,
+                  height: 96,
+                  decoration: BoxDecoration(
+                    color: cs.errorContainer.withOpacity(0.42),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.error_outline_rounded,
+                    size: 52,
+                    color: cs.error,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  "No se pudo cargar el perfil",
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurface,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: cs.onSurfaceVariant,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: () => onRetry(),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text("Reintentar"),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 15,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShimmerContainer extends StatelessWidget {
+  final Animation<double> animation;
+  final Widget child;
+
+  const _ShimmerContainer({required this.animation, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        return ShaderMask(
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                cs.surfaceContainerHighest,
+                cs.surfaceContainerHighest.withOpacity(0.5),
+                cs.surfaceContainerHighest,
+              ],
+              stops: const [0.0, 0.5, 1.0],
+              transform: _SlidingGradientTransform(
+                slidePercent: animation.value,
+              ),
+            ).createShader(bounds);
+          },
+          child: child,
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+class _SlidingGradientTransform extends GradientTransform {
+  final double slidePercent;
+
+  const _SlidingGradientTransform({required this.slidePercent});
+
+  @override
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) {
+    return Matrix4.translationValues(bounds.width * slidePercent, 0.0, 0.0);
   }
 }
