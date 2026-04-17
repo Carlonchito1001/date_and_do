@@ -30,18 +30,19 @@ class _NewMatchScreenState extends State<NewMatchScreen>
   late Animation<double> _scaleAnimation;
   late Animation<double> _pulseAnimation;
   late Animation<double> _rotateAnimation;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
 
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 850),
       vsync: this,
     );
 
     _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1700),
       vsync: this,
     )..repeat(reverse: true);
 
@@ -50,16 +51,21 @@ class _NewMatchScreenState extends State<NewMatchScreen>
       curve: Curves.elasticOut,
     );
 
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
+    _fadeAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    );
+
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.07).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    _rotateAnimation = Tween<double>(begin: -0.1, end: 0.1).animate(
+    _rotateAnimation = Tween<double>(begin: -0.08, end: 0.08).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    Future.delayed(const Duration(milliseconds: 100), () {
-      _controller.forward();
+    Future.delayed(const Duration(milliseconds: 80), () {
+      if (mounted) _controller.forward();
     });
   }
 
@@ -94,7 +100,7 @@ class _NewMatchScreenState extends State<NewMatchScreen>
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: Colors.black.withOpacity(0.9),
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
           AnimatedBuilder(
@@ -103,114 +109,189 @@ class _NewMatchScreenState extends State<NewMatchScreen>
               return Container(
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
-                    center: const Alignment(0, -0.3),
-                    radius: 0.8 + (_pulseAnimation.value - 1.0) * 0.5,
+                    center: const Alignment(0, -0.25),
+                    radius: 0.95 + (_pulseAnimation.value - 1.0) * 0.35,
                     colors: [
-                      cs.primary.withOpacity(0.3),
-                      Colors.pink.withOpacity(0.2),
-                      Colors.black.withOpacity(0.9),
+                      cs.primary.withOpacity(0.28),
+                      Colors.pink.withOpacity(0.18),
+                      const Color(0xFF120A14),
+                      Colors.black,
                     ],
+                    stops: const [0.0, 0.28, 0.72, 1.0],
                   ),
                 ),
               );
             },
           ),
 
-          ...List.generate(20, (index) {
-            return _ConfettiParticle(
-              delay: index * 0.1,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withOpacity(0.03),
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.10),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          ...List.generate(
+            24,
+            (index) => _ConfettiParticle(
+              delay: index * 0.08,
               color: [
                 cs.primary,
-                Colors.pink,
-                Colors.amber,
+                Colors.pinkAccent,
+                Colors.amberAccent,
                 cs.secondary,
               ][index % 4],
-            );
-          }),
+            ),
+          ),
 
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Spacer(),
-
-                  ScaleTransition(
-                    scale: _scaleAnimation,
-                    child: Column(
-                      children: [
-                        Text(
-                          '¡Es un Match!',
-                          style: TextStyle(
-                            fontSize: 42,
-                            fontWeight: FontWeight.w900,
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Material(
+                      color: Colors.white.withOpacity(0.10),
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => _keepSwiping(context),
+                        child: const Padding(
+                          padding: EdgeInsets.all(10),
+                          child: Icon(
+                            Icons.close_rounded,
                             color: Colors.white,
-                            shadows: [
-                              Shadow(
-                                color: cs.primary.withOpacity(0.8),
-                                blurRadius: 20,
-                                offset: const Offset(0, 0),
-                              ),
-                            ],
+                            size: 22,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'A ti y a ${widget.matchedUserName} les gustan mutuamente',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white.withOpacity(0.8),
-                            fontWeight: FontWeight.w500,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
 
-                  const SizedBox(height: 48),
+                  const Spacer(),
+
+                  FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: ScaleTransition(
+                      scale: _scaleAnimation,
+                      child: Column(
+                        children: [
+                          ShaderMask(
+                            shaderCallback: (bounds) {
+                              return LinearGradient(
+                                colors: [
+                                  Colors.white,
+                                  Colors.pink.shade100,
+                                  Colors.white,
+                                ],
+                              ).createShader(bounds);
+                            },
+                            child: const Text(
+                              '¡Es un Match!',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 42,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                letterSpacing: 0.2,
+                                height: 1.0,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'A ti y a ${widget.matchedUserName} les gustaron mutuamente.',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white.withOpacity(0.82),
+                              fontWeight: FontWeight.w500,
+                              height: 1.35,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 44),
 
                   ScaleTransition(
                     scale: _scaleAnimation,
                     child: AnimatedBuilder(
                       animation: _pulseAnimation,
                       builder: (context, child) {
-                        return Transform.scale(
-                          scale: _pulseAnimation.value,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                        return SizedBox(
+                          width: 280,
+                          height: 150,
+                          child: Stack(
+                            alignment: Alignment.center,
                             children: [
-                              _UserAvatar(
-                                photoUrl: widget.currentUserPhoto,
-                                size: 100,
-                                borderColor: cs.primary,
+                              Transform.translate(
+                                offset: const Offset(-58, 10),
+                                child: Transform.rotate(
+                                  angle: -0.22,
+                                  child: _UserAvatar(
+                                    photoUrl: widget.currentUserPhoto,
+                                    size: 118,
+                                    borderColor: cs.primary,
+                                  ),
+                                ),
                               ),
-                              const SizedBox(width: 16),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.pink,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.pink.withOpacity(0.5),
-                                      blurRadius: 20,
-                                      spreadRadius: 5,
+                              Transform.translate(
+                                offset: const Offset(58, 10),
+                                child: Transform.rotate(
+                                  angle: 0.22,
+                                  child: _UserAvatar(
+                                    photoUrl: widget.matchedUserPhoto,
+                                    size: 118,
+                                    borderColor: Colors.pinkAccent,
+                                  ),
+                                ),
+                              ),
+                              Transform.scale(
+                                scale: _pulseAnimation.value,
+                                child: Container(
+                                  width: 82,
+                                  height: 82,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFFFF4D8D),
+                                        Color(0xFFFF7BAC),
+                                      ],
                                     ),
-                                  ],
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.pink.withOpacity(0.40),
+                                        blurRadius: 24,
+                                        spreadRadius: 4,
+                                      ),
+                                    ],
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.22),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.favorite_rounded,
+                                    color: Colors.white,
+                                    size: 38,
+                                  ),
                                 ),
-                                child: const Icon(
-                                  Icons.favorite_rounded,
-                                  color: Colors.white,
-                                  size: 32,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              _UserAvatar(
-                                photoUrl: widget.matchedUserPhoto,
-                                size: 100,
-                                borderColor: Colors.pink,
                               ),
                             ],
                           ),
@@ -219,80 +300,99 @@ class _NewMatchScreenState extends State<NewMatchScreen>
                     ),
                   ),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 26),
 
-                  ScaleTransition(
-                    scale: _scaleAnimation,
-                    child: Text(
-                      widget.matchedUserName,
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                  FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.10),
+                        ),
+                      ),
+                      child: Text(
+                        widget.matchedUserName,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          height: 1.0,
+                        ),
                       ),
                     ),
                   ),
 
                   const Spacer(),
 
-                  ScaleTransition(
-                    scale: _scaleAnimation,
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: ElevatedButton.icon(
-                            onPressed: () => _goToChat(context),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: cs.primary,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                  FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: ScaleTransition(
+                      scale: _scaleAnimation,
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            height: 58,
+                            child: FilledButton.icon(
+                              onPressed: () => _goToChat(context),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: cs.primary,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
                               ),
-                            ),
-                            icon: const Icon(Icons.chat_bubble_rounded),
-                            label: const Text(
-                              'Enviar mensaje',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: OutlinedButton.icon(
-                            onPressed: () => _keepSwiping(context),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: BorderSide(
-                                color: Colors.white.withOpacity(0.3),
-                                width: 1.5,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            icon: const Icon(Icons.swipe_rounded),
-                            label: const Text(
-                              'Seguir descubriendo',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                              icon: const Icon(Icons.chat_bubble_rounded),
+                              label: const Text(
+                                'Enviar mensaje',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 58,
+                            child: OutlinedButton.icon(
+                              onPressed: () => _keepSwiping(context),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: BorderSide(
+                                  color: Colors.white.withOpacity(0.22),
+                                  width: 1.5,
+                                ),
+                                backgroundColor: Colors.white.withOpacity(0.04),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                              ),
+                              icon: const Icon(Icons.swipe_rounded),
+                              label: const Text(
+                                'Seguir descubriendo',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
@@ -324,9 +424,14 @@ class _UserAvatar extends StatelessWidget {
         border: Border.all(color: borderColor, width: 4),
         boxShadow: [
           BoxShadow(
-            color: borderColor.withOpacity(0.4),
+            color: borderColor.withOpacity(0.35),
             blurRadius: 20,
             spreadRadius: 2,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -344,10 +449,10 @@ class _UserAvatar extends StatelessWidget {
 
   Widget _buildPlaceholder() {
     return Container(
-      color: Colors.grey[800],
+      color: Colors.grey[850],
       child: Icon(
         Icons.person_rounded,
-        size: size * 0.5,
+        size: size * 0.46,
         color: Colors.white54,
       ),
     );
@@ -372,22 +477,24 @@ class _ConfettiParticleState extends State<_ConfettiParticle>
   late double _startY;
   late double _endX;
   late double _endY;
+  late double _size;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 2200),
       vsync: this,
     );
 
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
 
     final random = Random();
-    _startX = random.nextDouble() * 400 - 200;
-    _startY = -50;
-    _endX = random.nextDouble() * 600 - 300;
-    _endY = 900;
+    _startX = random.nextDouble() * 420 - 210;
+    _startY = -60;
+    _endX = random.nextDouble() * 680 - 340;
+    _endY = 920;
+    _size = 6 + random.nextDouble() * 6;
 
     Future.delayed(Duration(milliseconds: (widget.delay * 1000).toInt()), () {
       if (mounted) _controller.forward();
@@ -414,12 +521,12 @@ class _ConfettiParticleState extends State<_ConfettiParticle>
           left: MediaQuery.of(context).size.width / 2 + x,
           top: y,
           child: Opacity(
-            opacity: opacity,
+            opacity: opacity.clamp(0.0, 1.0),
             child: Transform.rotate(
               angle: rotation,
               child: Container(
-                width: 8,
-                height: 8,
+                width: _size,
+                height: _size,
                 decoration: BoxDecoration(
                   color: widget.color,
                   shape: BoxShape.circle,
