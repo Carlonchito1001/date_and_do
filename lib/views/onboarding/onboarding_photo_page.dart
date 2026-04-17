@@ -7,6 +7,7 @@ import 'package:date_and_doing/views/onboarding/onboarding_photo_model.dart';
 import '../home/dd_home.dart';
 import 'package:date_and_doing/widgets/cached_base64_photo.dart';
 import 'package:date_and_doing/helpers/photo_memory_cache_helper.dart';
+import 'package:date_and_doing/services/image_base64_service.dart';
 
 class OnboardingPhotosPage extends StatefulWidget {
   final bool isOnboardingFlow;
@@ -87,7 +88,6 @@ class _OnboardingPhotosPageState extends State<OnboardingPhotosPage> {
       if (picked == null) {
         if (!mounted) return;
 
-        // Si está en onboarding y aún no tiene fotos, avisar
         if (widget.isOnboardingFlow && _photos.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -103,7 +103,16 @@ class _OnboardingPhotosPageState extends State<OnboardingPhotosPage> {
       if (!mounted) return;
       setState(() => _uploading = true);
 
-      await _api.uploadUserPhoto(File(picked.path));
+      final originalFile = File(picked.path);
+
+      final fixedFile = await ImageBase64Service.normalizeAndCompressToJpegFile(
+        originalFile,
+        quality: 80,
+        minWidth: 1080,
+        minHeight: 1080,
+      );
+
+      await _api.uploadUserPhoto(fixedFile);
       await _loadPhotos();
 
       if (!mounted) return;

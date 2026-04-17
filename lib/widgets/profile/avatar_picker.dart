@@ -100,8 +100,8 @@ class _AvatarPickerState extends State<AvatarPicker> {
 
       final xfile = await _picker.pickImage(
         source: source,
-        imageQuality: 100, // NO confíes solo en esto, igual comprimimos nosotros
-        maxWidth: 2000, // primer recorte suave
+        imageQuality: 100,
+        maxWidth: 2000,
       );
 
       if (xfile == null) {
@@ -109,11 +109,17 @@ class _AvatarPickerState extends State<AvatarPicker> {
         return;
       }
 
-      final file = File(xfile.path);
+      final originalFile = File(xfile.path);
 
-      // Comprimir + base64
+      final fixedFile = await ImageBase64Service.normalizeAndCompressToJpegFile(
+        originalFile,
+        quality: widget.quality,
+        minWidth: widget.minSize,
+        minHeight: widget.minSize,
+      );
+
       final base64 = await ImageBase64Service.fileToBase64Jpeg(
-        file,
+        fixedFile,
         quality: widget.quality,
         minWidth: widget.minSize,
         minHeight: widget.minSize,
@@ -123,23 +129,18 @@ class _AvatarPickerState extends State<AvatarPicker> {
       if (!mounted) return;
 
       setState(() {
-        _localFile = file;
+        _localFile = fixedFile;
         _localBase64 = base64;
         _processing = false;
       });
 
-      widget.onPicked(
-        AvatarPickResult(
-          file: file,
-          base64: base64,
-        ),
-      );
+      widget.onPicked(AvatarPickResult(file: fixedFile, base64: base64));
     } catch (e) {
       if (!mounted) return;
       setState(() => _processing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error seleccionando imagen: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error seleccionando imagen: $e")));
     }
   }
 
@@ -161,8 +162,8 @@ class _AvatarPickerState extends State<AvatarPicker> {
     final imageProvider = _localFile != null
         ? FileImage(_localFile!)
         : (widget.initialImageUrl != null && widget.initialImageUrl!.isNotEmpty
-            ? NetworkImage(widget.initialImageUrl!)
-            : null);
+              ? NetworkImage(widget.initialImageUrl!)
+              : null);
 
     return Column(
       children: [
@@ -222,10 +223,7 @@ class _AvatarPickerState extends State<AvatarPicker> {
           icon: Icon(Icons.image_outlined, color: cs.primary),
           label: Text(
             _localBase64 == null ? "Cambiar foto" : "Foto lista para guardar",
-            style: TextStyle(
-              color: cs.primary,
-              fontWeight: FontWeight.w700,
-            ),
+            style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700),
           ),
         ),
       ],

@@ -54,6 +54,7 @@ dependencies:
   csc_picker: ^0.2.7
   intl: ^0.20.2
   flutter_secure_storage: ^10.0.0
+  flutter_exif_rotation: ^0.5.2
 
 dev_dependencies:
   flutter_test:

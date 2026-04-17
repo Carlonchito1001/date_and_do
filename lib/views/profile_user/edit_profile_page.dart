@@ -3,13 +3,9 @@ import 'dart:io';
 import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
 import 'package:flutter/material.dart';
-
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:path_provider/path_provider.dart';
-
-// ✅ Picker País/Estado/Ciudad (rápido)
 import 'package:country_state_city_picker/country_state_city_picker.dart';
+import 'package:date_and_doing/services/image_base64_service.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -208,9 +204,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
       if (xfile == null) return;
 
       final original = File(xfile.path);
-      final compressed = await _compressToJpeg(original);
-      final bytes = await compressed.readAsBytes();
 
+      final compressed =
+          await ImageBase64Service.normalizeAndCompressToJpegFile(
+            original,
+            quality: 75,
+            minWidth: 720,
+            minHeight: 720,
+          );
+
+      final bytes = await compressed.readAsBytes();
       final b64 = base64Encode(bytes);
 
       if (!mounted) return;
@@ -223,23 +226,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
-  Future<File> _compressToJpeg(File file) async {
-    final dir = await getTemporaryDirectory();
-    final targetPath =
-        '${dir.path}/avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-    final result = await FlutterImageCompress.compressAndGetFile(
-      file.absolute.path,
-      targetPath,
-      quality: 75,
-      minWidth: 720,
-      minHeight: 720,
-      format: CompressFormat.jpeg,
-    );
-
-    if (result == null) return file;
-    return File(result.path);
-  }
 
   // ===================== Payload / Save =====================
 
