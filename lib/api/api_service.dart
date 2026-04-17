@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:date_and_doing/config/app_config.dart';
 import 'package:date_and_doing/models/dd_date.dart';
 import 'package:date_and_doing/views/home/date_flow/chat_timeline_api_item.dart';
 import 'package:date_and_doing/views/onboarding/onboarding_photo_model.dart';
@@ -155,7 +156,7 @@ class ApiService {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'X-Service-Code': 'dateanddo',
+        'X-Service-Code': AppConfig.serviceCode,
       },
       body: jsonEncode({'firebase_id_token': cleanToken}),
     );
@@ -230,7 +231,7 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Service-Code': 'dateanddo',
+          'X-Service-Code': AppConfig.serviceCode,
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode(payload),
@@ -258,7 +259,7 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Service-Code': 'dateanddo',
+          'X-Service-Code': AppConfig.serviceCode,
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
@@ -322,7 +323,7 @@ class ApiService {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
         },
       );
     });
@@ -420,7 +421,7 @@ class ApiService {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'X-Service-Code': 'dateanddo',
+        'X-Service-Code': AppConfig.serviceCode,
       },
       body: jsonEncode({'refresh': refreshToken}),
     );
@@ -546,7 +547,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
         body: jsonEncode(payload),
@@ -569,7 +570,7 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Service-Code': 'dateanddo',
+          'X-Service-Code': AppConfig.serviceCode,
           'Authorization': 'Bearer $token',
         },
       );
@@ -594,7 +595,7 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Service-Code': 'dateanddo',
+          'X-Service-Code': AppConfig.serviceCode,
           'Authorization': 'Bearer $token',
         },
       );
@@ -624,7 +625,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
         body: jsonEncode(data),
@@ -647,7 +648,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
         body: jsonEncode({}),
@@ -670,7 +671,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
         body: jsonEncode({}),
@@ -693,7 +694,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
         body: jsonEncode({}),
@@ -726,7 +727,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
         body: jsonEncode(payload),
@@ -762,7 +763,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
         body: jsonEncode(payload),
@@ -785,7 +786,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
       );
@@ -809,7 +810,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
       );
@@ -833,7 +834,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
       );
@@ -857,7 +858,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
         body: jsonEncode({"ddm_int_id": matchId}),
@@ -917,7 +918,7 @@ class ApiService {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
         },
       );
     });
@@ -950,7 +951,7 @@ class ApiService {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
         },
         body: jsonEncode(body),
       );
@@ -996,7 +997,7 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Service-Code': 'dateanddo',
+          'X-Service-Code': AppConfig.serviceCode,
           'Authorization': 'Bearer $token',
         },
       );
@@ -1023,7 +1024,7 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Service-Code': 'dateanddo',
+          'X-Service-Code': AppConfig.serviceCode,
           'Authorization': 'Bearer $token',
         },
       );
@@ -1049,7 +1050,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
         body: jsonEncode({}),
@@ -1075,7 +1076,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
         body: jsonEncode(data),
@@ -1098,7 +1099,7 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Service-Code': 'dateanddo',
+          'X-Service-Code': AppConfig.serviceCode,
           'Authorization': 'Bearer $token',
         },
       );
@@ -1150,7 +1151,7 @@ class ApiService {
         Uri.parse(ApiEndpoints.userPhotos),
         headers: {
           'Accept': 'application/json',
-          'X-Service-Code': 'dateanddo',
+          'X-Service-Code': AppConfig.serviceCode,
           'Authorization': 'Bearer $token',
         },
       );
@@ -1179,7 +1180,7 @@ class ApiService {
 
     request.headers.addAll({
       'Accept': 'application/json',
-      'X-Service-Code': 'dateanddo',
+      'X-Service-Code': AppConfig.serviceCode,
       'Authorization': 'Bearer $token',
     });
 
@@ -1208,7 +1209,7 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Service-Code': 'dateanddo',
+          'X-Service-Code': AppConfig.serviceCode,
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({}),
@@ -1232,7 +1233,7 @@ class ApiService {
         Uri.parse("${ApiEndpoints.userPhotos}$photoId/"),
         headers: {
           'Accept': 'application/json',
-          'X-Service-Code': 'dateanddo',
+          'X-Service-Code': AppConfig.serviceCode,
           'Authorization': 'Bearer $token',
         },
       );
@@ -1254,7 +1255,7 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-Service-Code': 'dateanddo',
+          'X-Service-Code': AppConfig.serviceCode,
           'Authorization': 'Bearer $token',
         },
       );
@@ -1284,7 +1285,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
         body: jsonEncode({
@@ -1312,7 +1313,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
       );
@@ -1362,7 +1363,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
         body: jsonEncode(body),
@@ -1385,7 +1386,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
       );
@@ -1407,7 +1408,7 @@ class ApiService {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-Service-Code": "dateanddo",
+          "X-Service-Code": AppConfig.serviceCode,
           "Authorization": "Bearer $token",
         },
         body: jsonEncode({
