@@ -95,33 +95,49 @@ class DiscoverCard extends StatelessWidget {
       return dist;
     }
 
-    Widget buildChip({
+    Widget buildSoftChip({
       required IconData icon,
       required String label,
       Color? color,
+      bool dark = false,
     }) {
       if (label.trim().isEmpty) return const SizedBox.shrink();
 
       final chipColor = color ?? cs.primary;
 
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: chipColor.withOpacity(0.10),
+          color: dark
+              ? Colors.white.withOpacity(0.14)
+              : chipColor.withOpacity(0.10),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: chipColor.withOpacity(0.22)),
+          border: Border.all(
+            color: dark
+                ? Colors.white.withOpacity(0.24)
+                : chipColor.withOpacity(0.18),
+          ),
+          boxShadow: dark
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 15, color: chipColor),
+            Icon(icon, size: 15, color: dark ? Colors.white : chipColor),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
                 label,
                 overflow: TextOverflow.ellipsis,
                 style: txt.bodySmall?.copyWith(
-                  color: chipColor,
+                  color: dark ? Colors.white : chipColor,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -131,7 +147,7 @@ class DiscoverCard extends StatelessWidget {
       );
     }
 
-    Widget _fallbackAvatar() {
+    Widget fallbackAvatar() {
       return Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -145,7 +161,7 @@ class DiscoverCard extends StatelessWidget {
           name.isNotEmpty ? name[0].toUpperCase() : '?',
           style: txt.displayLarge?.copyWith(
             color: cs.onPrimary,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w900,
           ),
         ),
       );
@@ -153,15 +169,15 @@ class DiscoverCard extends StatelessWidget {
 
     return Center(
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 18),
+        margin: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(32),
           color: cs.surface,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.10),
-              blurRadius: 22,
-              offset: const Offset(0, 10),
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 26,
+              offset: const Offset(0, 12),
             ),
           ],
         ),
@@ -169,7 +185,7 @@ class DiscoverCard extends StatelessWidget {
         child: Column(
           children: [
             SizedBox(
-              height: 360,
+              height: 390,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -177,39 +193,56 @@ class DiscoverCard extends StatelessWidget {
                     UserPhotoView(
                       fallbackUrl: avatar,
                       fit: BoxFit.cover,
-                      errorWidget: _fallbackAvatar(),
+                      errorWidget: fallbackAvatar(),
                     )
                   else
-                    _fallbackAvatar(),
+                    fallbackAvatar(),
 
-                  const DecoratedBox(
+                  DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Color(0x14000000),
-                          Color(0x33000000),
-                          Color(0x99000000),
+                          Colors.black.withOpacity(0.06),
+                          Colors.black.withOpacity(0.18),
+                          Colors.black.withOpacity(0.65),
                         ],
+                        stops: const [0.0, 0.35, 1.0],
                       ),
                     ),
                   ),
 
                   Positioned(
-                    top: 16,
-                    left: 16,
-                    child: buildChip(
-                      icon: Icons.location_on_rounded,
-                      label: locationText(),
-                      color: Colors.white,
+                    top: 18,
+                    left: 18,
+                    right: 18,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: buildSoftChip(
+                            icon: Icons.location_on_rounded,
+                            label: locationText(),
+                            dark: true,
+                          ),
+                        ),
+                        if (_lookingForLabel(lookingFor).isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          buildSoftChip(
+                            icon: Icons.favorite_rounded,
+                            label: _lookingForLabel(lookingFor),
+                            color: Colors.pinkAccent,
+                            dark: true,
+                          ),
+                        ],
+                      ],
                     ),
                   ),
 
                   Positioned(
-                    left: 18,
-                    right: 18,
-                    bottom: 18,
+                    left: 20,
+                    right: 20,
+                    bottom: 20,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -217,28 +250,39 @@ class DiscoverCard extends StatelessWidget {
                           '$name${age.isNotEmpty ? ', $age' : ''}',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: txt.headlineSmall?.copyWith(
+                          style: txt.headlineMedium?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,
+                            height: 1.0,
                             shadows: const [
                               Shadow(
                                 color: Colors.black54,
-                                blurRadius: 8,
+                                blurRadius: 10,
                                 offset: Offset(0, 2),
                               ),
                             ],
                           ),
                         ),
-                        if (job.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            job,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: txt.bodyMedium?.copyWith(
-                              color: Colors.white.withOpacity(0.92),
-                              fontWeight: FontWeight.w600,
-                            ),
+                        if (job.isNotEmpty ||
+                            _genderLabel(gender).isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              if (job.isNotEmpty)
+                                buildSoftChip(
+                                  icon: Icons.work_rounded,
+                                  label: job,
+                                  dark: true,
+                                ),
+                              if (_genderLabel(gender).isNotEmpty)
+                                buildSoftChip(
+                                  icon: Icons.person_rounded,
+                                  label: _genderLabel(gender),
+                                  dark: true,
+                                ),
+                            ],
                           ),
                         ],
                       ],
@@ -253,53 +297,49 @@ class DiscoverCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      if (_lookingForLabel(lookingFor).isNotEmpty)
-                        buildChip(
-                          icon: Icons.favorite_rounded,
-                          label: _lookingForLabel(lookingFor),
-                          color: Colors.pinkAccent,
+                  if (mainText.isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHighest.withOpacity(0.34),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: cs.outlineVariant.withOpacity(0.22),
                         ),
-                      if (_genderLabel(gender).isNotEmpty)
-                        buildChip(
-                          icon: Icons.person_rounded,
-                          label: _genderLabel(gender),
-                          color: cs.secondary,
+                      ),
+                      child: Text(
+                        mainText,
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                        style: txt.bodyLarge?.copyWith(
+                          height: 1.45,
+                          color: cs.onSurface.withOpacity(0.88),
+                          fontWeight: FontWeight.w500,
                         ),
-                      if (job.isNotEmpty)
-                        buildChip(
-                          icon: Icons.work_rounded,
-                          label: job,
-                          color: cs.primary,
-                        ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  Text(
-                    mainText,
-                    maxLines: 4,
-                    overflow: TextOverflow.ellipsis,
-                    style: txt.bodyLarge?.copyWith(
-                      height: 1.45,
-                      color: cs.onSurface.withOpacity(0.86),
-                    ),
-                  ),
-
-                  if (interestList.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    Text(
-                      'Intereses',
-                      style: txt.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: cs.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 8),
+
+                  if (interestList.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.interests_rounded,
+                          size: 18,
+                          color: cs.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Intereses',
+                          style: txt.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
