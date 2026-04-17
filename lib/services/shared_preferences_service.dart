@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:date_and_doing/services/secure_storage_service.dart';
 
 class SharedPreferencesService {
   static String keyIsLogged = 'is_logged';
@@ -13,8 +14,11 @@ class SharedPreferencesService {
 
   static String keyUserInfo = 'user_info';
 
+  // Se mantienen para compatibilidad, pero los tokens ya no se guardan aquí.
   static String keyAccessToken = 'access_token';
   static String keyRefreshToken = 'refresh_token';
+
+  final SecureStorageService _secureStorage = SecureStorageService();
 
   Future<void> saveUserSession({
     required String uid,
@@ -26,50 +30,56 @@ class SharedPreferencesService {
     String? refreshToken,
   }) async {
     final prefs = await SharedPreferences.getInstance();
+
     await prefs.setBool(keyIsLogged, true);
     await prefs.setString(keyUid, uid);
 
-    if (email != null) await prefs.setString(keyEmail, email);
-    if (phone != null) await prefs.setString(keyPhone, phone);
-    if (photoUrl != null) await prefs.setString(keyPhoto, photoUrl);
-    if (firebaseIdToken != null)
-      await prefs.setString(firetoken, firebaseIdToken);
+    if (email != null) {
+      await prefs.setString(keyEmail, email);
+    }
 
-    await prefs.setString(keyAccessToken, accessToken);
+    if (phone != null) {
+      await prefs.setString(keyPhone, phone);
+    }
+
+    if (photoUrl != null) {
+      await prefs.setString(keyPhoto, photoUrl);
+    }
+
+    if (firebaseIdToken != null && firebaseIdToken.isNotEmpty) {
+      await prefs.setString(firetoken, firebaseIdToken);
+    }
+
+    // Tokens a secure storage
+    await _secureStorage.saveAccessToken(accessToken);
 
     if (refreshToken != null && refreshToken.isNotEmpty) {
-      await prefs.setString(keyRefreshToken, refreshToken);
+      await _secureStorage.saveRefreshToken(refreshToken);
     }
   }
 
   Future<void> saveAccessToken(String accessToken) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(keyAccessToken, accessToken);
+    await _secureStorage.saveAccessToken(accessToken);
   }
 
   Future<String?> getAccessToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(keyAccessToken);
+    return _secureStorage.getAccessToken();
   }
 
   Future<void> saveRefreshToken(String refreshToken) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(keyRefreshToken, refreshToken);
+    await _secureStorage.saveRefreshToken(refreshToken);
   }
 
   Future<String?> getRefreshToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(keyRefreshToken);
+    return _secureStorage.getRefreshToken();
   }
 
   Future<bool> hasRefreshToken() async {
-    final r = await getRefreshToken();
-    return r != null && r.isNotEmpty;
+    return _secureStorage.hasRefreshToken();
   }
 
   Future<bool> hasAccessToken() async {
-    final a = await getAccessToken();
-    return a != null && a.isNotEmpty;
+    return _secureStorage.hasAccessToken();
   }
 
   Future<void> saveUserInfo(Map<String, dynamic> userInfo) async {
@@ -80,8 +90,16 @@ class SharedPreferencesService {
   Future<Map<String, dynamic>?> getUserInfo() async {
     final prefs = await SharedPreferences.getInstance();
     final userInfoString = prefs.getString(keyUserInfo);
-    if (userInfoString == null) return null;
-    return jsonDecode(userInfoString) as Map<String, dynamic>;
+
+    if (userInfoString == null || userInfoString.isEmpty) {
+      return null;
+    }
+
+    try {
+      return jsonDecode(userInfoString) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<bool> isLogged() async {
@@ -91,7 +109,9 @@ class SharedPreferencesService {
 
   Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
+
     await prefs.clear();
+    await _secureStorage.clearTokens();
   }
 
   Future<int?> getUserId() async {
@@ -125,7 +145,7 @@ class SharedPreferencesService {
 
   Future<int> getMaxDistance() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(keyMaxDistance) ?? 50; // Default: 50km
+    return prefs.getInt(keyMaxDistance) ?? 50;
   }
 
   // ================== BOOL / STRING GENÉRICOS ==================

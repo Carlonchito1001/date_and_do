@@ -27,8 +27,7 @@ import 'package:date_and_doing/views/home/date_flow/chat_timeline_api_mapper.dar
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:date_and_doing/views/home/chat/widgets/chat_date_separator.dart';
 import 'package:date_and_doing/views/home/chat/utils/chat_date_utils.dart';
-import 'package:date_and_doing/views/home/matches/match_profile_model.dart';
-
+  
 import 'package:date_and_doing/views/home/date_flow/chat_date_complete_modal.dart';
 
 import 'package:date_and_doing/views/home/date_flow/chat_date_reschedule_modal.dart';
