@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../services/image_base64_service.dart';
@@ -109,7 +110,32 @@ class _AvatarPickerState extends State<AvatarPicker> {
         return;
       }
 
-      final originalFile = File(xfile.path);
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: xfile.path,
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 100,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Editar foto',
+            toolbarWidgetColor: Colors.white,
+            lockAspectRatio: false,
+            hideBottomControls: false,
+          ),
+          IOSUiSettings(
+            title: 'Editar foto',
+            rotateButtonsHidden: false,
+            aspectRatioLockEnabled: false,
+            resetAspectRatioEnabled: true,
+          ),
+        ],
+      );
+
+      if (cropped == null) {
+        if (mounted) setState(() => _processing = false);
+        return;
+      }
+
+      final originalFile = File(cropped.path);
 
       final fixedFile = await ImageBase64Service.normalizeAndCompressToJpegFile(
         originalFile,

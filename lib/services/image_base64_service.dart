@@ -6,7 +6,6 @@ import 'package:flutter_exif_rotation/flutter_exif_rotation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class ImageBase64Service {
-  /// Corrige orientación EXIF antes de cualquier procesamiento.
   static Future<File> normalizeOrientation(File file) async {
     try {
       final rotated = await FlutterExifRotation.rotateImage(path: file.path);
@@ -16,7 +15,6 @@ class ImageBase64Service {
     }
   }
 
-  /// Comprime y devuelve bytes JPEG ya orientados correctamente.
   static Future<Uint8List> compressToJpegBytes(
     File file, {
     int quality = 72,
@@ -39,14 +37,11 @@ class ImageBase64Service {
     return result;
   }
 
-  /// Devuelve base64 puro (sin data:image/...).
   static String bytesToBase64(Uint8List bytes) => base64Encode(bytes);
 
-  /// Devuelve data-uri: data:image/jpeg;base64,xxxx
   static String bytesToDataUriJpeg(Uint8List bytes) =>
       "data:image/jpeg;base64,${base64Encode(bytes)}";
 
-  /// Flujo completo: File -> corregir orientación -> comprimir -> base64
   static Future<String> fileToBase64Jpeg(
     File file, {
     int quality = 72,
@@ -63,7 +58,6 @@ class ImageBase64Service {
     return dataUri ? bytesToDataUriJpeg(bytes) : bytesToBase64(bytes);
   }
 
-  /// Devuelve archivo JPEG corregido y comprimido.
   static Future<File> normalizeAndCompressToJpegFile(
     File file, {
     int quality = 75,

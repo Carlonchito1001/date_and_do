@@ -11,6 +11,12 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:date_and_doing/widgets/cached_base64_photo.dart';
 // import 'package:date_and_doing/helpers/photo_memory_cache_helper.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:image_cropper/image_cropper.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:date_and_doing/services/image_base64_service.dart';
 
 class HomeProfile extends StatefulWidget {
   const HomeProfile({super.key});
@@ -175,11 +181,15 @@ class _HomeProfileState extends State<HomeProfile>
     }
   }
 
-  void _openPhotoPreview(OnboardingPhotoModel photo) {
-    Navigator.push(
+  Future<void> _openPhotoPreview(OnboardingPhotoModel photo) async {
+    final updated = await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => _PhotoPreviewPage(photo: photo)),
     );
+
+    if (updated == true) {
+      await _refreshUserData();
+    }
   }
 
   @override
@@ -467,36 +477,246 @@ class _HomeProfileState extends State<HomeProfile>
   }
 }
 
-class _PhotoPreviewPage extends StatelessWidget {
+class _PhotoPreviewPage extends StatefulWidget {
   final OnboardingPhotoModel photo;
 
   const _PhotoPreviewPage({required this.photo});
 
   @override
+  State<_PhotoPreviewPage> createState() => _PhotoPreviewPageState();
+}
+
+class _PhotoPreviewPageState extends State<_PhotoPreviewPage> {
+  final ApiService _api = ApiService();
+
+  int _quarterTurns = 0;
+  bool _saving = false;
+
+  void _rotateLeft() {
+    setState(() {
+      _quarterTurns = (_quarterTurns - 1) % 4;
+    });
+  }
+
+  void _rotateRight() {
+    setState(() {
+      _quarterTurns = (_quarterTurns + 1) % 4;
+    });
+  }
+
+  Future<File> _buildEditableSourceFile() async {
+    final tempDir = await getTemporaryDirectory();
+    final filePath =
+        '${tempDir.path}/editable_photo_${widget.photo.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+    if ((widget.photo.url ?? '').trim().isNotEmpty) {
+      final response = await http.get(Uri.parse(widget.photo.url!));
+      if (response.statusCode == 200) {
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes, flush: true);
+        return file;
+      }
+    }
+
+    final preview = widget.photo.previewBase64 ?? '';
+    if (preview.trim().isNotEmpty) {
+      final file = File(filePath);
+      await file.writeAsBytes(base64Decode(preview), flush: true);
+      return file;
+    }
+
+    throw Exception('No se pudo obtener el archivo original de la foto.');
+  }
+
+  Future<void> _editAndSave() async {
+    if (_saving) return;
+
+    try {
+      setState(() => _saving = true);
+
+      final sourceFile = await _buildEditableSourceFile();
+
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: sourceFile.path,
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 100,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Editar foto',
+            toolbarWidgetColor: Colors.white,
+            lockAspectRatio: false,
+            hideBottomControls: false,
+          ),
+          IOSUiSettings(
+            title: 'Editar foto',
+            rotateButtonsHidden: false,
+            aspectRatioLockEnabled: false,
+            resetAspectRatioEnabled: true,
+          ),
+        ],
+      );
+
+      if (cropped == null) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        return;
+      }
+
+      File editedFile = File(cropped.path);
+
+      if (_quarterTurns != 0) {
+        editedFile = await _rotateFileByQuarterTurns(
+          editedFile,
+          ((_quarterTurns % 4) + 4) % 4,
+        );
+      }
+
+      final fixedFile = await ImageBase64Service.normalizeAndCompressToJpegFile(
+        editedFile,
+        quality: 80,
+        minWidth: 1080,
+        minHeight: 1080,
+      );
+
+      await _api.updateUserPhoto(
+        photoId: widget.photo.id,
+        imageFile: fixedFile,
+      );
+
+      if (!mounted) return;
+      setState(() => _saving = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Foto actualizada correctamente")),
+      );
+
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error guardando foto: $e")));
+    }
+  }
+
+  Future<File> _rotateFileByQuarterTurns(File inputFile, int turns) async {
+    if (turns == 0) return inputFile;
+
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: inputFile.path,
+      compressFormat: ImageCompressFormat.jpg,
+      compressQuality: 100,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Ajustar rotación',
+          toolbarWidgetColor: Colors.white,
+          lockAspectRatio: false,
+          hideBottomControls: false,
+          initAspectRatio: CropAspectRatioPreset.original,
+        ),
+        IOSUiSettings(
+          title: 'Ajustar rotación',
+          rotateButtonsHidden: false,
+          aspectRatioLockEnabled: false,
+          resetAspectRatioEnabled: true,
+        ),
+      ],
+    );
+
+    if (cropped != null) {
+      return File(cropped.path);
+    }
+
+    return inputFile;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final turns = ((_quarterTurns % 4) + 4) % 4;
 
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text(photo.isPrimary ? "Foto principal" : "Foto"),
+        title: Text(widget.photo.isPrimary ? "Foto principal" : "Foto"),
+        actions: [
+          IconButton(
+            tooltip: "Girar izquierda",
+            onPressed: _saving ? null : _rotateLeft,
+            icon: const Icon(Icons.rotate_left_rounded),
+          ),
+          IconButton(
+            tooltip: "Girar derecha",
+            onPressed: _saving ? null : _rotateRight,
+            icon: const Icon(Icons.rotate_right_rounded),
+          ),
+          TextButton.icon(
+            onPressed: _saving ? null : _editAndSave,
+            icon: _saving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save_rounded),
+            label: const Text("Guardar"),
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
+          ),
+        ],
       ),
-      body: Center(
-        child: InteractiveViewer(
-          minScale: 0.8,
-          maxScale: 4,
-          child: CachedBase64Photo(
-            photo: photo,
-            fit: BoxFit.contain,
-            errorWidget: Icon(
-              Icons.broken_image_rounded,
-              color: cs.error,
-              size: 64,
+      body: Stack(
+        children: [
+          Center(
+            child: InteractiveViewer(
+              minScale: 0.8,
+              maxScale: 4,
+              child: RotatedBox(
+                quarterTurns: turns,
+                child: CachedBase64Photo(
+                  photo: widget.photo,
+                  fit: BoxFit.contain,
+                  errorWidget: Icon(
+                    Icons.broken_image_rounded,
+                    color: cs.error,
+                    size: 64,
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
+          Positioned(
+            bottom: 18,
+            left: 16,
+            right: 16,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.45),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.white.withOpacity(0.10)),
+                ),
+                child: Text(
+                  turns == 0
+                      ? "Puedes girar, hacer zoom y luego guardar"
+                      : "Rotación lista: ${turns * 90}° · toca Guardar",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

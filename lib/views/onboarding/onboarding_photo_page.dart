@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/views/onboarding/onboarding_photo_model.dart';
@@ -100,10 +101,32 @@ class _OnboardingPhotosPageState extends State<OnboardingPhotosPage> {
         return;
       }
 
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: picked.path,
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 100,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Editar foto',
+            toolbarWidgetColor: Colors.white,
+            lockAspectRatio: false,
+            hideBottomControls: false,
+          ),
+          IOSUiSettings(
+            title: 'Editar foto',
+            rotateButtonsHidden: false,
+            aspectRatioLockEnabled: false,
+            resetAspectRatioEnabled: true,
+          ),
+        ],
+      );
+
+      if (cropped == null) return;
+
       if (!mounted) return;
       setState(() => _uploading = true);
 
-      final originalFile = File(picked.path);
+      final originalFile = File(cropped.path);
 
       final fixedFile = await ImageBase64Service.normalizeAndCompressToJpegFile(
         originalFile,

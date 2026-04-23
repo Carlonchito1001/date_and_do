@@ -3,9 +3,13 @@ import 'dart:io';
 import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/services/shared_preferences_service.dart';
 import 'package:flutter/material.dart';
+
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:country_state_city_picker/country_state_city_picker.dart';
 import 'package:date_and_doing/services/image_base64_service.dart';
+
+// ✅ Picker País/Estado/Ciudad (rápido)
+import 'package:country_state_city_picker/country_state_city_picker.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -203,7 +207,28 @@ class _EditProfilePageState extends State<EditProfilePage> {
       );
       if (xfile == null) return;
 
-      final original = File(xfile.path);
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: xfile.path,
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 100,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Editar foto',
+            toolbarWidgetColor: Colors.white,
+            lockAspectRatio: false,
+            hideBottomControls: false,
+          ),
+          IOSUiSettings(
+            title: 'Editar foto',
+            rotateButtonsHidden: false,
+            aspectRatioLockEnabled: false,
+            resetAspectRatioEnabled: true,
+          ),
+        ],
+      );
+      if (cropped == null) return;
+
+      final original = File(cropped.path);
 
       final compressed =
           await ImageBase64Service.normalizeAndCompressToJpegFile(
@@ -212,8 +237,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
             minWidth: 720,
             minHeight: 720,
           );
-
       final bytes = await compressed.readAsBytes();
+
       final b64 = base64Encode(bytes);
 
       if (!mounted) return;
@@ -225,8 +250,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
       _toast("Error seleccionando imagen: $e");
     }
   }
-
-
 
   // ===================== Payload / Save =====================
 

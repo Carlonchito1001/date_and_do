@@ -1202,6 +1202,41 @@ class ApiService {
     );
   }
 
+  Future<OnboardingPhotoModel> updateUserPhoto({
+    required int photoId,
+    required File imageFile,
+  }) async {
+    final token = await _getValidAccessToken();
+
+    final request = http.MultipartRequest(
+      'PATCH',
+      Uri.parse("${ApiEndpoints.userPhotos}$photoId/"),
+    );
+
+    request.headers.addAll({
+      'Accept': 'application/json',
+      'X-Service-Code': AppConfig.serviceCode,
+      'Authorization': 'Bearer $token',
+    });
+
+    request.files.add(
+      await http.MultipartFile.fromPath('ddphoto_img_file', imageFile.path),
+    );
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return OnboardingPhotoModel.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    }
+
+    throw Exception(
+      'Failed to update user photo: ${response.statusCode} - ${response.body}',
+    );
+  }
+
   Future<OnboardingPhotoModel> makeUserPhotoPrimary(int photoId) async {
     final response = await _requestWithRefresh((token) {
       return http.post(
