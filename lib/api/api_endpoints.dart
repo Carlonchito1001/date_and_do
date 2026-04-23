@@ -18,7 +18,8 @@ class ApiEndpoints {
   static String allMatches = '$baseUrl/dateanddo/matches/';
   static String allChats = '$baseUrl/dateanddo/messages/';
   static String messages = '$baseUrl/dateanddo/messages/';
-  static String messagesByMatch(int matchId) => '${messages}?ddm_int_id=$matchId';
+  static String messagesByMatch(int matchId) =>
+      '${messages}?ddm_int_id=$matchId';
   static String messageById(int id) => '$baseUrl/dateanddo/messages/$id/';
   static String markMessagesAsRead = '$baseUrl/dateanddo/messages/mark_read/';
 
@@ -55,4 +56,5 @@ class ApiEndpoints {
   // Lugares externos
   static String lugares(String category) =>
       '${AppConfig.placesBase}?category=$category&limit=20';
+  static String logout = '$baseUrl/core-auth/logout/';
 }

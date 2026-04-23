@@ -108,13 +108,22 @@ class _HomeProfileState extends State<HomeProfile>
 
   Future<void> logout(BuildContext context) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
+      // 1. reportar logout al backend
+      try {
+        await _api.logout();
+      } catch (e) {
+        debugPrint("Logout backend warning: $e");
+      }
 
+      // 2. limpiar sesión local
+      await SharedPreferencesService().clearSession();
+
+      // 3. cerrar sesión Google si aplica
       await GoogleAuthService().signOut();
 
       if (!mounted) return;
 
+      // 4. volver al login limpiando stack
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const DdLogin()),

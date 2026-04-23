@@ -1461,4 +1461,27 @@ class ApiService {
       "Failed to accept terms: ${response.statusCode} - ${response.body}",
     );
   }
+
+  Future<void> logout() async {
+    final response = await _requestWithRefresh((token) {
+      return http.post(
+        Uri.parse(ApiEndpoints.logout),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Service-Code': AppConfig.serviceCode,
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({}),
+      );
+    });
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return;
+    }
+
+    throw Exception(
+      'Failed to logout: ${response.statusCode} - ${response.body}',
+    );
+  }
 }
