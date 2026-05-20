@@ -56,17 +56,11 @@ android {
 
     buildTypes {
         release {
-            // ✅ usa release signing
-            signingConfig = signingConfigs.getByName("release")
+        signingConfig = signingConfigs.getByName("release")
 
-            // Opcional:
-            // isMinifyEnabled = true
-            // isShrinkResources = true
-            // proguardFiles(
-            //     getDefaultProguardFile("proguard-android-optimize.txt"),
-            //     "proguard-rules.pro"
-            // )
-        }
+        isMinifyEnabled = false
+        isShrinkResources = false
+    }
         debug {
             // se queda con debug signing default
         }

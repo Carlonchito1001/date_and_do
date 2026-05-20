@@ -552,7 +552,11 @@ class _PhotoPreviewPageState extends State<_PhotoPreviewPage> {
         uiSettings: [
           AndroidUiSettings(
             toolbarTitle: 'Editar foto',
+            toolbarColor: const Color(0xFF120018),
             toolbarWidgetColor: Colors.white,
+            activeControlsWidgetColor: const Color(0xFFFF4B93),
+            statusBarColor: const Color(0xFF120018),
+            backgroundColor: Colors.black,
             lockAspectRatio: false,
             hideBottomControls: false,
           ),
@@ -620,7 +624,11 @@ class _PhotoPreviewPageState extends State<_PhotoPreviewPage> {
       uiSettings: [
         AndroidUiSettings(
           toolbarTitle: 'Ajustar rotación',
+          toolbarColor: const Color(0xFF120018),
           toolbarWidgetColor: Colors.white,
+          activeControlsWidgetColor: const Color(0xFFFF4B93),
+          statusBarColor: const Color(0xFF120018),
+          backgroundColor: Colors.black,
           lockAspectRatio: false,
           hideBottomControls: false,
           initAspectRatio: CropAspectRatioPreset.original,

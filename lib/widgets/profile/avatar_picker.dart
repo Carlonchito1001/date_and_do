@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:date_and_doing/helpers/photo_permission_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
@@ -96,6 +97,13 @@ class _AvatarPickerState extends State<AvatarPicker> {
   }
 
   Future<void> _pick(ImageSource source) async {
+    final allowed = await PhotoPermissionHelper.requestPhotoPermission(
+      context: context,
+      source: source,
+    );
+
+    if (!allowed) return;
+
     try {
       setState(() => _processing = true);
 
@@ -110,6 +118,8 @@ class _AvatarPickerState extends State<AvatarPicker> {
         return;
       }
 
+      // aquí sigue tu cropper igual como ya lo tienes
+
       final cropped = await ImageCropper().cropImage(
         sourcePath: xfile.path,
         compressFormat: ImageCompressFormat.jpg,
@@ -117,7 +127,11 @@ class _AvatarPickerState extends State<AvatarPicker> {
         uiSettings: [
           AndroidUiSettings(
             toolbarTitle: 'Editar foto',
+            toolbarColor: const Color(0xFF120018),
             toolbarWidgetColor: Colors.white,
+            activeControlsWidgetColor: const Color(0xFFFF4B93),
+            statusBarColor: const Color(0xFF120018),
+            backgroundColor: Colors.black,
             lockAspectRatio: false,
             hideBottomControls: false,
           ),

@@ -9,6 +9,7 @@ import '../home/dd_home.dart';
 import 'package:date_and_doing/widgets/cached_base64_photo.dart';
 import 'package:date_and_doing/helpers/photo_memory_cache_helper.dart';
 import 'package:date_and_doing/services/image_base64_service.dart';
+import 'package:date_and_doing/helpers/photo_permission_helper.dart';
 
 class OnboardingPhotosPage extends StatefulWidget {
   final bool isOnboardingFlow;
@@ -36,6 +37,27 @@ class _OnboardingPhotosPageState extends State<OnboardingPhotosPage> {
   void initState() {
     super.initState();
     _loadPhotos();
+  }
+
+  Future<void> _ensurePrimaryPhotoIfNeeded() async {
+    if (_photos.isEmpty) return;
+
+    final hasPrimary = _photos.any((photo) => photo.isPrimary);
+
+    if (hasPrimary) return;
+
+    try {
+      debugPrint(
+        '⚠️ No hay foto principal. Marcando la primera foto como principal...',
+      );
+
+      await _api.makeUserPhotoPrimary(_photos.first.id);
+      await _loadPhotos();
+
+      debugPrint('✅ Foto principal corregida automáticamente');
+    } catch (e) {
+      debugPrint('⚠️ No se pudo corregir foto principal automáticamente: $e');
+    }
   }
 
   Future<void> _loadPhotos() async {
@@ -79,6 +101,13 @@ class _OnboardingPhotosPageState extends State<OnboardingPhotosPage> {
   }) async {
     if (_uploading) return;
 
+    final allowed = await PhotoPermissionHelper.requestPhotoPermission(
+      context: context,
+      source: source,
+    );
+
+    if (!allowed) return;
+
     try {
       final picked = await _picker.pickImage(
         source: source,
@@ -108,7 +137,11 @@ class _OnboardingPhotosPageState extends State<OnboardingPhotosPage> {
         uiSettings: [
           AndroidUiSettings(
             toolbarTitle: 'Editar foto',
+            toolbarColor: const Color(0xFF120018),
             toolbarWidgetColor: Colors.white,
+            activeControlsWidgetColor: const Color(0xFFFF4B93),
+            statusBarColor: const Color(0xFF120018),
+            backgroundColor: Colors.black,
             lockAspectRatio: false,
             hideBottomControls: false,
           ),
@@ -137,6 +170,7 @@ class _OnboardingPhotosPageState extends State<OnboardingPhotosPage> {
 
       await _api.uploadUserPhoto(fixedFile);
       await _loadPhotos();
+      await _ensurePrimaryPhotoIfNeeded();
 
       if (!mounted) return;
 
@@ -180,6 +214,7 @@ class _OnboardingPhotosPageState extends State<OnboardingPhotosPage> {
       PhotoMemoryCacheHelper.invalidatePhoto(photo.id);
       await _api.deleteUserPhoto(photo.id);
       await _loadPhotos();
+      await _ensurePrimaryPhotoIfNeeded();
 
       if (!mounted) return;
 
@@ -218,6 +253,7 @@ class _OnboardingPhotosPageState extends State<OnboardingPhotosPage> {
     try {
       if (!mounted) return;
       setState(() => _continuing = true);
+      await _ensurePrimaryPhotoIfNeeded();
 
       final profile = await _api.getOnboardingProfile();
 

@@ -7,6 +7,7 @@ class SharedPreferencesService {
   static String keyUid = 'uid';
   static String keyEmail = 'email';
   static String keyPhone = 'phone';
+  
   static String keyPhoto = 'photo_url';
 
   static String firetoken = 'fire_token';

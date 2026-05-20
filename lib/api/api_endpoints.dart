@@ -56,5 +56,6 @@ class ApiEndpoints {
   // Lugares externos
   static String lugares(String category) =>
       '${AppConfig.placesBase}?category=$category&limit=20';
-  static String logout = '$baseUrl/core-auth/logout/';
+  static String logout = '$baseUrl/dateanddo/user/logout/';
+  static String receivedLikes = '$baseUrl/dateanddo/swipes/received-likes/';
 }

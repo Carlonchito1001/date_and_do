@@ -354,6 +354,108 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
     );
   }
 
+  Future<void> _goToPhoto(int index) async {
+    final p = _profile;
+    if (p == null || p.photos.isEmpty) return;
+    if (index < 0 || index >= p.photos.length) return;
+
+    await _photoController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _goPrevPhoto() {
+    if (_photoIndex > 0) {
+      _goToPhoto(_photoIndex - 1);
+    }
+  }
+
+  void _goNextPhoto() {
+    final p = _profile;
+    if (p == null) return;
+    if (_photoIndex < p.photos.length - 1) {
+      _goToPhoto(_photoIndex + 1);
+    }
+  }
+
+  Widget _buildBottomActionBar(MatchProfileModel p, ColorScheme cs) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+        decoration: BoxDecoration(
+          color: cs.surface.withOpacity(0.98),
+          border: Border(
+            top: BorderSide(color: cs.outlineVariant.withOpacity(0.20)),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _openCreateDate,
+                    icon: const Icon(Icons.event_rounded),
+                    label: Text(
+                      p.dateEnabled
+                          ? "Proponer cita"
+                          : "Disponible en ${p.remainingChatDaysForDate} día(s)",
+                      textAlign: TextAlign.center,
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(54),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _openChat,
+                    icon: const Icon(Icons.chat_rounded),
+                    label: const Text("Chatear"),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(54),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (!p.dateEnabled)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  "Llevan ${p.chatDaysCount} día(s) válidos de conversación. Necesitan 5 para crear una cita.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: cs.onSurfaceVariant,
+                    fontSize: 12.5,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -373,426 +475,388 @@ class _MatchProfilePageState extends State<MatchProfilePage> {
 
     return Scaffold(
       backgroundColor: cs.surface,
-      body: Stack(
-        children: [
-          CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                expandedHeight: 500,
-                pinned: true,
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
-                actions: [
-                  PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == "report") {
-                        await Future.delayed(const Duration(milliseconds: 120));
-                        if (!mounted) return;
-                        await _showReportDialog();
-                      }
-                    },
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    itemBuilder: (context) => const [
-                      PopupMenuItem<String>(
-                        value: "report",
-                        child: Text("Reportar usuario"),
-                      ),
-                    ],
+      bottomNavigationBar: _buildBottomActionBar(p, cs),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 500,
+            pinned: true,
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            actions: [
+              PopupMenuButton<String>(
+                onSelected: (value) async {
+                  if (value == "report") {
+                    await Future.delayed(const Duration(milliseconds: 120));
+                    if (!mounted) return;
+                    await _showReportDialog();
+                  }
+                },
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                itemBuilder: (context) => const [
+                  PopupMenuItem<String>(
+                    value: "report",
+                    child: Text("Reportar usuario"),
                   ),
                 ],
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (photos.isNotEmpty)
-                        PageView.builder(
-                          controller: _photoController,
-                          physics: const BouncingScrollPhysics(
-                            parent: PageScrollPhysics(),
-                          ),
-                          padEnds: false,
-                          itemCount: photos.length,
-                          onPageChanged: (index) {
-                            setState(() => _photoIndex = index);
-                          },
-                          itemBuilder: (_, index) {
-                            final photo = photos[index];
-                            return GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () => _openPhotoGallery(index),
-                              child: UserPhotoView(
-                                base64String: _photoPreviewBase64(photo),
-                                fallbackUrl: _photoFallbackUrl(photo),
-                                fit: BoxFit.cover,
-                                errorWidget: Container(
-                                  color: Colors.grey.shade300,
-                                  child: const Icon(
-                                    Icons.broken_image_rounded,
-                                    size: 80,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        )
-                      else if ((p.otherUser.avatar ?? "").isNotEmpty)
-                        GestureDetector(
+              ),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (photos.isNotEmpty)
+                    PageView.builder(
+                      controller: _photoController,
+                      physics: const PageScrollPhysics(),
+                      itemCount: photos.length,
+                      onPageChanged: (index) {
+                        setState(() => _photoIndex = index);
+                      },
+                      itemBuilder: (_, index) {
+                        final photo = photos[index];
+                        return GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () =>
-                              _openSinglePhoto(url: p.otherUser.avatar),
+                          onTap: () => _openPhotoGallery(index),
                           child: UserPhotoView(
-                            fallbackUrl: p.otherUser.avatar!,
+                            base64String: _photoPreviewBase64(photo),
+                            fallbackUrl: _photoFallbackUrl(photo),
                             fit: BoxFit.cover,
                             errorWidget: Container(
                               color: Colors.grey.shade300,
-                              child: const Icon(Icons.person_rounded, size: 80),
+                              child: const Icon(
+                                Icons.broken_image_rounded,
+                                size: 80,
+                              ),
                             ),
                           ),
-                        )
-                      else
-                        Container(
+                        );
+                      },
+                    )
+                  else if ((p.otherUser.avatar ?? "").isNotEmpty)
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _openSinglePhoto(url: p.otherUser.avatar),
+                      child: UserPhotoView(
+                        fallbackUrl: p.otherUser.avatar!,
+                        fit: BoxFit.cover,
+                        errorWidget: Container(
                           color: Colors.grey.shade300,
-                          child: const Icon(Icons.person_rounded, size: 90),
+                          child: const Icon(Icons.person_rounded, size: 80),
                         ),
+                      ),
+                    )
+                  else
+                    Container(
+                      color: Colors.grey.shade300,
+                      child: const Icon(Icons.person_rounded, size: 90),
+                    ),
 
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.black.withOpacity(0.08),
-                              Colors.black.withOpacity(0.20),
-                              Colors.black.withOpacity(0.78),
-                            ],
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.08),
+                          Colors.black.withOpacity(0.20),
+                          Colors.black.withOpacity(0.78),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  if (photos.length > 1)
+                    Positioned(
+                      top: 62,
+                      left: 16,
+                      right: 16,
+                      child: IgnorePointer(
+                        child: Row(
+                          children: List.generate(
+                            photos.length,
+                            (i) => Expanded(
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 2,
+                                ),
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: i == _photoIndex
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.35),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
+                    ),
 
-                      if (photos.length > 1)
-                        Positioned(
-                          top: 62,
-                          left: 16,
-                          right: 16,
-                          child: IgnorePointer(
-                            child: Row(
-                              children: List.generate(
-                                photos.length,
-                                (i) => Expanded(
-                                  child: Container(
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 2,
-                                    ),
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: i == _photoIndex
-                                          ? Colors.white
-                                          : Colors.white.withOpacity(0.35),
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                  ),
-                                ),
+                  if (photos.length > 1)
+                    Positioned(
+                      top: 74,
+                      right: 16,
+                      child: IgnorePointer(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.42),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            "${_photoIndex + 1} / ${photos.length}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  if (photos.length > 1)
+                    Positioned(
+                      left: 8,
+                      top: 0,
+                      bottom: 90,
+                      child: Center(
+                        child: _PhotoNavButton(
+                          icon: Icons.chevron_left_rounded,
+                          onTap: _photoIndex > 0 ? _goPrevPhoto : null,
+                        ),
+                      ),
+                    ),
+
+                  if (photos.length > 1)
+                    Positioned(
+                      right: 8,
+                      top: 0,
+                      bottom: 90,
+                      child: Center(
+                        child: _PhotoNavButton(
+                          icon: Icons.chevron_right_rounded,
+                          onTap: _photoIndex < photos.length - 1
+                              ? _goNextPhoto
+                              : null,
+                        ),
+                      ),
+                    ),
+
+                  if (photos.length > 1)
+                    Positioned(
+                      bottom: 136,
+                      left: 20,
+                      right: 20,
+                      child: IgnorePointer(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.35),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Text(
+                              "Desliza o usa las flechas para ver más fotos",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
                         ),
+                      ),
+                    ),
 
-                      if (photos.length > 1)
-                        Positioned(
-                          top: 74,
-                          right: 16,
-                          child: IgnorePointer(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.42),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                "${_photoIndex + 1} / ${photos.length}",
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                ),
-                              ),
+                  Positioned(
+                    left: 20,
+                    right: 20,
+                    bottom: 28,
+                    child: IgnorePointer(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            p.otherUser.age.trim().isNotEmpty
+                                ? "${p.otherUser.fullName}, ${p.otherUser.age}"
+                                : p.otherUser.fullName,
+                            style: textTheme.headlineMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              height: 1.0,
                             ),
                           ),
-                        ),
-
-                      if (photos.length > 1)
-                        Positioned(
-                          bottom: 120,
-                          left: 20,
-                          child: IgnorePointer(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.35),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: const Text(
-                                "Desliza para ver más fotos",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-
-                      Positioned(
-                        left: 20,
-                        right: 20,
-                        bottom: 28,
-                        child: IgnorePointer(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
                             children: [
-                              Text(
-                                p.otherUser.age.trim().isNotEmpty
-                                    ? "${p.otherUser.fullName}, ${p.otherUser.age}"
-                                    : p.otherUser.fullName,
-                                style: textTheme.headlineMedium?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                  height: 1.0,
+                              if (p.otherUser.city.isNotEmpty ||
+                                  p.otherUser.country.isNotEmpty)
+                                _HeroInfoChip(
+                                  icon: Icons.location_on_rounded,
+                                  label: [p.otherUser.city, p.otherUser.country]
+                                      .where((e) => e.trim().isNotEmpty)
+                                      .join(", "),
                                 ),
-                              ),
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  if (p.otherUser.city.isNotEmpty ||
-                                      p.otherUser.country.isNotEmpty)
-                                    _HeroInfoChip(
-                                      icon: Icons.location_on_rounded,
-                                      label:
-                                          [
-                                                p.otherUser.city,
-                                                p.otherUser.country,
-                                              ]
-                                              .where((e) => e.trim().isNotEmpty)
-                                              .join(", "),
-                                    ),
-                                  if ((p.ddProfile?.job.trim().isNotEmpty ??
-                                      false))
-                                    _HeroInfoChip(
-                                      icon: Icons.work_rounded,
-                                      label: p.ddProfile!.job,
-                                    ),
-                                ],
-                              ),
+                              if ((p.ddProfile?.job.trim().isNotEmpty ?? false))
+                                _HeroInfoChip(
+                                  icon: Icons.work_rounded,
+                                  label: p.ddProfile!.job,
+                                ),
                             ],
                           ),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 140),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _SectionCard(
-                        title: "Sobre ${p.otherUser.fullName.split(' ').first}",
-                        icon: Icons.favorite_outline_rounded,
-                        child: Text(
-                          _displayBio(p),
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: cs.onSurface.withOpacity(0.88),
-                            height: 1.5,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _SectionCard(
-                        title: "Detalles",
-                        icon: Icons.badge_rounded,
-                        child: Column(
-                          children: [
-                            _InfoRow(
-                              icon: Icons.work_rounded,
-                              label: "Ocupación",
-                              value:
-                                  (p.ddProfile?.job.trim().isNotEmpty == true)
-                                  ? p.ddProfile!.job
-                                  : (p.otherUser.occupation
-                                            ?.trim()
-                                            .isNotEmpty ==
-                                        true)
-                                  ? p.otherUser.occupation!
-                                  : "No especificado",
-                            ),
-                            const SizedBox(height: 14),
-                            _InfoRow(
-                              icon: Icons.favorite_outline_rounded,
-                              label: "Busca",
-                              value:
-                                  (p.ddProfile?.lookingFor.trim().isNotEmpty ==
-                                      true)
-                                  ? p.ddProfile!.lookingFor
-                                  : "No especificado",
-                            ),
-                            const SizedBox(height: 14),
-                            _InfoRow(
-                              icon: Icons.person_outline_rounded,
-                              label: "Género",
-                              value:
-                                  (p.ddProfile?.gender.trim().isNotEmpty ==
-                                      true)
-                                  ? p.ddProfile!.gender
-                                  : (p.otherUser.gender?.trim().isNotEmpty ==
-                                        true)
-                                  ? p.otherUser.gender!
-                                  : "No especificado",
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _SectionCard(
-                        title: "Intereses",
-                        icon: Icons.interests_rounded,
-                        child: interests.isEmpty
-                            ? Text(
-                                "No se registraron intereses todavía.",
-                                style: textTheme.bodyMedium?.copyWith(
-                                  color: cs.onSurface.withOpacity(0.7),
-                                ),
-                              )
-                            : Wrap(
-                                spacing: 10,
-                                runSpacing: 10,
-                                children: interests
-                                    .map(
-                                      (e) => Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 10,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: cs.primary.withOpacity(0.08),
-                                          borderRadius: BorderRadius.circular(
-                                            999,
-                                          ),
-                                          border: Border.all(
-                                            color: cs.primary.withOpacity(0.18),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          e,
-                                          style: TextStyle(
-                                            color: cs.primary,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
 
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: SafeArea(
-              top: false,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: cs.surface.withOpacity(0.96),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: cs.outlineVariant.withOpacity(0.24),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SectionCard(
+                    title: "Sobre ${p.otherUser.fullName.split(' ').first}",
+                    icon: Icons.favorite_outline_rounded,
+                    child: Text(
+                      _displayBio(p),
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurface.withOpacity(0.88),
+                        height: 1.5,
+                      ),
                     ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
+                  ),
+                  const SizedBox(height: 16),
+                  _SectionCard(
+                    title: "Detalles",
+                    icon: Icons.badge_rounded,
+                    child: Column(
                       children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _openCreateDate,
-                            icon: const Icon(Icons.event_rounded),
-                            label: Text(
-                              p.dateEnabled
-                                  ? "Proponer cita"
-                                  : "Disponible en ${p.remainingChatDaysForDate} día(s)",
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(54),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                            ),
-                          ),
+                        _InfoRow(
+                          icon: Icons.work_rounded,
+                          label: "Ocupación",
+                          value: (p.ddProfile?.job.trim().isNotEmpty == true)
+                              ? p.ddProfile!.job
+                              : (p.otherUser.occupation?.trim().isNotEmpty ==
+                                    true)
+                              ? p.otherUser.occupation!
+                              : "No especificado",
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _openChat,
-                            icon: const Icon(Icons.chat_rounded),
-                            label: const Text("Chatear"),
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(54),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                            ),
-                          ),
+                        const SizedBox(height: 14),
+                        _InfoRow(
+                          icon: Icons.favorite_outline_rounded,
+                          label: "Busca",
+                          value:
+                              (p.ddProfile?.lookingFor.trim().isNotEmpty ==
+                                  true)
+                              ? p.ddProfile!.lookingFor
+                              : "No especificado",
+                        ),
+                        const SizedBox(height: 14),
+                        _InfoRow(
+                          icon: Icons.person_outline_rounded,
+                          label: "Género",
+                          value: (p.ddProfile?.gender.trim().isNotEmpty == true)
+                              ? p.ddProfile!.gender
+                              : (p.otherUser.gender?.trim().isNotEmpty == true)
+                              ? p.otherUser.gender!
+                              : "No especificado",
                         ),
                       ],
                     ),
-                    if (!p.dateEnabled)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: Text(
-                          "Llevan ${p.chatDaysCount} día(s) válidos de conversación. Necesitan 5 para crear una cita.",
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: cs.onSurfaceVariant,
-                                height: 1.35,
-                              ),
-                        ),
-                      ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 16),
+                  _SectionCard(
+                    title: "Intereses",
+                    icon: Icons.interests_rounded,
+                    child: interests.isEmpty
+                        ? Text(
+                            "No se registraron intereses todavía.",
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: cs.onSurface.withOpacity(0.7),
+                            ),
+                          )
+                        : Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: interests
+                                .map(
+                                  (e) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: cs.primary.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: cs.primary.withOpacity(0.18),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      e,
+                                      style: TextStyle(
+                                        color: cs.primary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                  ),
+                ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PhotoNavButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  const _PhotoNavButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+
+    return Material(
+      color: Colors.black.withOpacity(enabled ? 0.28 : 0.14),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            icon,
+            color: enabled ? Colors.white : Colors.white38,
+            size: 26,
+          ),
+        ),
       ),
     );
   }

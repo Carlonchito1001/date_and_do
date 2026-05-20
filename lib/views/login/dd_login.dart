@@ -199,7 +199,7 @@ class _DdLoginState extends State<DdLogin> {
                           shape: BoxShape.circle,
                           color: Colors.white.withOpacity(0.2),
                         ),
-                        child: Image.asset('assets/datedo.png', scale: 5),
+                        child: Image.asset('assets/date.png', scale: 5),
                       ),
                       const SizedBox(height: 16),
                       const Text(

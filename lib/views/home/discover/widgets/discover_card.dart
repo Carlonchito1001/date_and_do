@@ -61,7 +61,10 @@ class DiscoverCard extends StatelessWidget {
       fallback: 'Sin nombre',
     );
     final String age = _safeString(user['use_txt_age']);
-    final String avatar = _safeString(user['use_txt_avatar']);
+    final String photoBase64 = _safeString(user['photo_preview_base64']);
+    final String avatar = _safeString(
+      user['photo_fallback_url'] ?? user['use_txt_avatar'],
+    );
     final String city = _safeString(user['use_txt_city']);
     final String country = _safeString(user['use_txt_country']);
     final String description = _safeString(user['use_txt_description']);
@@ -189,8 +192,9 @@ class DiscoverCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (avatar.isNotEmpty)
+                  if (photoBase64.isNotEmpty || avatar.isNotEmpty)
                     UserPhotoView(
+                      base64String: photoBase64,
                       fallbackUrl: avatar,
                       fit: BoxFit.cover,
                       errorWidget: fallbackAvatar(),

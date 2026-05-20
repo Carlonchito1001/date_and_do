@@ -17,6 +17,7 @@ class _MatchPreferencesPageState extends State<MatchPreferencesPage> {
   double _maxDistanceKm = 50;
 
   bool _saving = false;
+  bool _loading = true;
 
   final _api = ApiService();
   final _sp = SharedPreferencesService();
@@ -27,41 +28,101 @@ class _MatchPreferencesPageState extends State<MatchPreferencesPage> {
     _loadPreferences();
   }
 
+  double _asDouble(dynamic value, double fallback) {
+    if (value == null) return fallback;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? fallback;
+    return fallback;
+  }
+
+  String _normalizeTargetGender(dynamic value) {
+    final raw = (value ?? "todos").toString().trim().toLowerCase();
+
+    if (raw == "mujer" || raw == "femenino") return "mujer";
+    if (raw == "hombre" || raw == "masculino") return "hombre";
+    if (raw == "todos" || raw == "todo" || raw == "ambos") return "todos";
+
+    return "todos";
+  }
+
+  String _normalizeLookingFor(dynamic value) {
+    final raw = (value ?? "relacion").toString().trim().toLowerCase();
+
+    if (raw == "relacion" ||
+        raw == "relación" ||
+        raw == "relacion seria" ||
+        raw == "relación seria") {
+      return "relacion";
+    }
+
+    if (raw == "casual" || raw == "algo casual" || raw == "citas casuales") {
+      return "casual";
+    }
+
+    if (raw == "amistad" || raw == "amigos" || raw == "conocer gente") {
+      return "amistad";
+    }
+
+    if (raw == "noc" ||
+        raw == "no se" ||
+        raw == "no sé" ||
+        raw == "aun no lo se" ||
+        raw == "aún no lo sé") {
+      return "noc";
+    }
+
+    return "relacion";
+  }
+
   Future<void> _loadPreferences() async {
     try {
       final token = await _sp.getAccessToken();
-      if (token == null || token.isEmpty) return;
+
+      if (token == null || token.isEmpty) {
+        if (!mounted) return;
+        setState(() => _loading = false);
+        return;
+      }
 
       final prefs = await _api.getPreferences(accessToken: token);
 
       if (!mounted) return;
 
+      final loadedDistance = _asDouble(
+        prefs["ddp_int_radius_km"],
+        50,
+      ).clamp(5.0, 100.0).toDouble();
+
+      final loadedMinAge = _asDouble(
+        prefs["ddp_int_age_min"],
+        18,
+      ).clamp(18.0, 80.0).toDouble();
+
+      final loadedMaxAge = _asDouble(
+        prefs["ddp_int_age_max"],
+        35,
+      ).clamp(18.0, 80.0).toDouble();
+
       setState(() {
-        _maxDistanceKm =
-            (((prefs["ddp_int_radius_km"] ?? 50) as num).toDouble().clamp(
-              5.0,
-              100.0,
-            )).toDouble();
+        _maxDistanceKm = loadedDistance;
 
-        final double loadedMinAge =
-            (((prefs["ddp_int_age_min"] ?? 18) as num).toDouble().clamp(
-              18.0,
-              80.0,
-            )).toDouble();
+        if (loadedMinAge <= loadedMaxAge) {
+          _minAge = loadedMinAge;
+          _maxAge = loadedMaxAge;
+        } else {
+          _minAge = loadedMaxAge;
+          _maxAge = loadedMinAge;
+        }
 
-        final double loadedMaxAge =
-            (((prefs["ddp_int_age_max"] ?? 35) as num).toDouble().clamp(
-              18.0,
-              80.0,
-            )).toDouble();
+        _targetGender = _normalizeTargetGender(prefs["ddp_txt_target_gender"]);
 
-        _minAge = loadedMinAge <= loadedMaxAge ? loadedMinAge : loadedMaxAge;
-        _maxAge = loadedMaxAge >= _minAge ? loadedMaxAge : _minAge;
+        _lookingFor = _normalizeLookingFor(prefs["ddp_txt_looking_for"]);
 
-        _targetGender = (prefs["ddp_txt_target_gender"] ?? "todos").toString();
-        _lookingFor = (prefs["ddp_txt_looking_for"] ?? "relacion").toString();
+        _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
       _toast("No se pudieron cargar las preferencias");
     }
   }
@@ -78,42 +139,39 @@ class _MatchPreferencesPageState extends State<MatchPreferencesPage> {
 
     try {
       final token = await _sp.getAccessToken();
+
       if (token == null || token.isEmpty) {
         throw Exception("No hay sesión activa");
       }
-
-      final userId = await _sp.getUserIdOrThrow();
 
       await _api.updatePreferences(
         accessToken: token,
         radiusKm: _maxDistanceKm.toInt(),
         ageMin: _minAge.toInt(),
         ageMax: _maxAge.toInt(),
-      );
-
-      await _api.updateMatchPreferences(
-        userId: userId,
         targetGender: _targetGender,
-        minAge: _minAge.toInt(),
-        maxAge: _maxAge.toInt(),
         lookingFor: _lookingFor,
       );
 
       await _sp.saveMaxDistance(_maxDistanceKm.toInt());
 
       if (!mounted) return;
+
       setState(() => _saving = false);
 
       _toast("✅ Preferencias guardadas");
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
+
       setState(() => _saving = false);
       _toast("❌ Error: $e");
     }
   }
 
   void _toast(String msg) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
@@ -122,6 +180,13 @@ class _MatchPreferencesPageState extends State<MatchPreferencesPage> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final textTheme = theme.textTheme;
+
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Preferencias")),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text("Preferencias")),
@@ -349,7 +414,7 @@ class _MatchPreferencesPageState extends State<MatchPreferencesPage> {
                       value: _minAge,
                       onChanged: (v) {
                         setState(() {
-                          _minAge = v.clamp(18, _maxAge);
+                          _minAge = v.clamp(18.0, _maxAge).toDouble();
                         });
                       },
                     ),
@@ -369,7 +434,7 @@ class _MatchPreferencesPageState extends State<MatchPreferencesPage> {
                       value: _maxAge,
                       onChanged: (v) {
                         setState(() {
-                          _maxAge = v.clamp(_minAge, 80);
+                          _maxAge = v.clamp(_minAge, 80.0).toDouble();
                         });
                       },
                       activeColor: Colors.black87,

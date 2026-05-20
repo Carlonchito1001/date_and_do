@@ -8,6 +8,7 @@ import 'package:date_and_doing/views/profile_user/home_profile.dart';
 import 'discover/dd_discover.dart';
 import 'dd_matches.dart';
 import './dd_messages.dart';
+import 'likes/received_likes_page.dart';
 
 class DdHome extends StatefulWidget {
   const DdHome({super.key});
@@ -84,10 +85,9 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
   void _onItemTapped(int index) {
     if (_currentIndex == index) return;
 
-    if (_currentIndex == 2) {
+    if (_currentIndex == 3) {
       _loadUnreadMessagesCount();
     }
-
     setState(() {
       _currentIndex = index;
     });
@@ -101,10 +101,12 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
       case 0:
         return "Descubrir";
       case 1:
-        return "Matches";
+        return "Likes";
       case 2:
-        return "Mensajes";
+        return "Matches";
       case 3:
+        return "Mensajes";
+      case 4:
         return "Mi perfil";
       default:
         return "Inicio";
@@ -116,10 +118,12 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
       case 0:
         return Icons.explore_rounded;
       case 1:
-        return Icons.favorite_rounded;
+        return Icons.favorite_border_rounded;
       case 2:
-        return Icons.chat_bubble_rounded;
+        return Icons.favorite_rounded;
       case 3:
+        return Icons.chat_bubble_rounded;
+      case 4:
         return Icons.person_rounded;
       default:
         return Icons.favorite_rounded;
@@ -210,6 +214,7 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
           index: _currentIndex,
           children: [
             const DdDiscover(),
+            const ReceivedLikesPage(),
             const DdMatchesPage(),
             DdMessages(
               onUnreadCountChanged: _loadUnreadMessagesCount,
@@ -249,26 +254,33 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
                 colorScheme: cs,
               ),
               _NavBarItem(
-                icon: Icons.favorite_rounded,
-                label: "Matches",
+                icon: Icons.favorite_border_rounded,
+                label: "Likes",
                 isSelected: _currentIndex == 1,
-                badgeCount: _matchesCount,
                 onTap: () => _onItemTapped(1),
+                colorScheme: cs,
+              ),
+              _NavBarItem(
+                icon: Icons.people_alt_rounded,
+                label: "Matches",
+                isSelected: _currentIndex == 2,
+                badgeCount: _matchesCount,
+                onTap: () => _onItemTapped(2),
                 colorScheme: cs,
               ),
               _NavBarItem(
                 icon: Icons.chat_bubble_rounded,
                 label: "Mensajes",
-                isSelected: _currentIndex == 2,
+                isSelected: _currentIndex == 3,
                 badgeCount: _messagesCount,
-                onTap: () => _onItemTapped(2),
+                onTap: () => _onItemTapped(3),
                 colorScheme: cs,
               ),
               _NavBarItem(
                 icon: Icons.person_rounded,
                 label: "Perfil",
-                isSelected: _currentIndex == 3,
-                onTap: () => _onItemTapped(3),
+                isSelected: _currentIndex == 4,
+                onTap: () => _onItemTapped(4),
                 colorScheme: cs,
               ),
             ],

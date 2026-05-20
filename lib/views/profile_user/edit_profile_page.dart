@@ -10,6 +10,7 @@ import 'package:date_and_doing/services/image_base64_service.dart';
 
 // ✅ Picker País/Estado/Ciudad (rápido)
 import 'package:country_state_city_picker/country_state_city_picker.dart';
+import 'package:date_and_doing/helpers/photo_permission_helper.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -199,13 +200,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _pickAvatar(ImageSource source) async {
+    final allowed = await PhotoPermissionHelper.requestPhotoPermission(
+      context: context,
+      source: source,
+    );
+
+    if (!allowed) return;
+
     try {
       final xfile = await _picker.pickImage(
         source: source,
         imageQuality: 100,
         maxWidth: 2400,
       );
+
       if (xfile == null) return;
+
+      // aquí sigue tu cropper igual como ya lo tienes
 
       final cropped = await ImageCropper().cropImage(
         sourcePath: xfile.path,
@@ -213,10 +224,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
         compressQuality: 100,
         uiSettings: [
           AndroidUiSettings(
-            toolbarTitle: 'Editar foto',
+            toolbarTitle: 'Ajustar rotación',
+            toolbarColor: const Color(0xFF120018),
             toolbarWidgetColor: Colors.white,
+            activeControlsWidgetColor: const Color(0xFFFF4B93),
+            statusBarColor: const Color(0xFF120018),
+            backgroundColor: Colors.black,
             lockAspectRatio: false,
             hideBottomControls: false,
+            initAspectRatio: CropAspectRatioPreset.original,
           ),
           IOSUiSettings(
             title: 'Editar foto',

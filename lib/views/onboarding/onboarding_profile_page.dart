@@ -34,6 +34,7 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
 
   bool _loading = true;
   bool _saving = false;
+  bool _loadingLocation = false;
   String? _error;
 
   String _selectedGender = "";
@@ -57,10 +58,16 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
     "Citas casuales",
   ];
 
+  // Ubicación de respaldo para no bloquear el registro si el GPS falla.
+  // Iquitos, Perú.
+  static const double _fallbackLatitude = -3.7437;
+  static const double _fallbackLongitude = -73.2516;
+
   @override
   void initState() {
     super.initState();
     _loadProfile();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _tryAutoloadLocation();
     });
@@ -68,14 +75,27 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
 
   Future<void> _tryAutoloadLocation() async {
     if (_selectedLatitude != null && _selectedLongitude != null) return;
+    if (_loadingLocation) return;
 
-    final position = await _locationService.getCurrentPositionSafe();
-    if (!mounted || position == null) return;
+    setState(() => _loadingLocation = true);
 
-    setState(() {
-      _selectedLatitude = position.latitude;
-      _selectedLongitude = position.longitude;
-    });
+    try {
+      final position = await _locationService.getCurrentPositionSafe();
+
+      if (!mounted) return;
+
+      if (position != null) {
+        setState(() {
+          _selectedLatitude = position.latitude;
+          _selectedLongitude = position.longitude;
+        });
+      }
+    } catch (e) {
+      debugPrint("ONBOARDING AUTO LOCATION ERROR => $e");
+    } finally {
+      if (!mounted) return;
+      setState(() => _loadingLocation = false);
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -92,8 +112,8 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
       _countryCtrl.text = profile.country;
       _bioCtrl.text = profile.bio;
       _jobCtrl.text = profile.job;
-
       _ageCtrl.text = profile.age;
+
       _selectedLatitude = profile.latitude;
       _selectedLongitude = profile.longitude;
 
@@ -101,12 +121,14 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
       _selectedLookingFor = profile.lookingFor;
 
       if (!mounted) return;
+
       setState(() {
         _profile = profile;
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         _error = e.toString();
         _loading = false;
@@ -115,6 +137,10 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
   }
 
   Future<void> _useRealLocation() async {
+    if (_loadingLocation) return;
+
+    setState(() => _loadingLocation = true);
+
     try {
       final position = await _locationService.getCurrentPositionSafe();
 
@@ -124,7 +150,7 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'No se pudo obtener la ubicación real del dispositivo',
+              'No se pudo obtener la ubicación. Revisa que el GPS esté activo.',
             ),
           ),
         );
@@ -147,6 +173,9 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error obteniendo ubicación: $e')));
+    } finally {
+      if (!mounted) return;
+      setState(() => _loadingLocation = false);
     }
   }
 
@@ -163,17 +192,103 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
     }
   }
 
+  bool _validateProfile() {
+    final name = _nameCtrl.text.trim();
+    final age = int.tryParse(_ageCtrl.text.trim());
+    final bio = _bioCtrl.text.trim();
+
+    if (name.isEmpty) {
+      _showSnack("Ingresa tu nombre visible.");
+      return false;
+    }
+
+    if (age == null || age < 18 || age > 80) {
+      _showSnack("Ingresa una edad válida entre 18 y 80 años.");
+      return false;
+    }
+
+    if (_cityCtrl.text.trim().isEmpty) {
+      _showSnack("Ingresa tu ciudad.");
+      return false;
+    }
+
+    if (_countryCtrl.text.trim().isEmpty) {
+      _showSnack("Ingresa tu país.");
+      return false;
+    }
+
+    if (bio.isEmpty) {
+      _showSnack("Cuéntanos un poco sobre ti.");
+      return false;
+    }
+
+    if (_selectedGender.isEmpty) {
+      _showSnack("Selecciona tu género.");
+      return false;
+    }
+
+    if (_selectedLookingFor.isEmpty) {
+      _showSnack("Selecciona qué estás buscando.");
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _ensureLocationBeforeSave() async {
+    if (_selectedLatitude != null && _selectedLongitude != null) return;
+
+    try {
+      final position = await _locationService.getCurrentPositionSafe();
+
+      if (position != null) {
+        _selectedLatitude = position.latitude;
+        _selectedLongitude = position.longitude;
+        return;
+      }
+    } catch (e) {
+      debugPrint("ONBOARDING LOCATION BEFORE SAVE ERROR => $e");
+    }
+
+    // Si el GPS falla, no bloqueamos el onboarding.
+    // Dejamos ubicación de respaldo para permitir continuar.
+    _selectedLatitude = _fallbackLatitude;
+    _selectedLongitude = _fallbackLongitude;
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          "No se pudo obtener tu ubicación exacta. Se usará una ubicación referencial para completar el registro.",
+        ),
+      ),
+    );
+  }
+
   Future<void> _saveProfile() async {
     if (_saving) return;
+
+    if (!_validateProfile()) return;
 
     setState(() => _saving = true);
 
     try {
+      await _ensureLocationBeforeSave();
+
+      final city = _cityCtrl.text.trim().isNotEmpty
+          ? _cityCtrl.text.trim()
+          : "Iquitos";
+
+      final country = _countryCtrl.text.trim().isNotEmpty
+          ? _countryCtrl.text.trim()
+          : "Perú";
+
       final payload = {
         "use_txt_fullname": _nameCtrl.text.trim(),
         "use_txt_age": _ageCtrl.text.trim(),
-        "use_txt_city": _cityCtrl.text.trim(),
-        "use_txt_country": _countryCtrl.text.trim(),
+        "use_txt_city": city,
+        "use_txt_country": country,
         "use_double_latitude": _selectedLatitude,
         "use_double_longitude": _selectedLongitude,
         "ddp_txt_bio": _bioCtrl.text.trim(),
@@ -189,6 +304,8 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
       if (!mounted) return;
 
       if (widget.isOnboardingFlow) {
+        setState(() => _saving = false);
+
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => const OnboardingPhotosPage(isOnboardingFlow: true),
@@ -216,6 +333,14 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
         context,
       ).showSnackBar(SnackBar(content: Text("Error guardando: $e")));
     }
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -268,6 +393,7 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
                     title: "Nombre visible",
                     child: TextField(
                       controller: _nameCtrl,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
                         hintText: "Tu nombre",
                         border: OutlineInputBorder(),
@@ -281,6 +407,7 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
                     child: TextField(
                       controller: _ageCtrl,
                       keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
                         hintText: "Ej. 27",
                         border: OutlineInputBorder(),
@@ -288,12 +415,12 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  const SizedBox(height: 14),
 
                   _SectionCard(
                     title: "Ciudad",
                     child: TextField(
                       controller: _cityCtrl,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
                         hintText: "Ej. Iquitos",
                         border: OutlineInputBorder(),
@@ -306,6 +433,7 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
                     title: "País",
                     child: TextField(
                       controller: _countryCtrl,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
                         hintText: "Ej. Perú",
                         border: OutlineInputBorder(),
@@ -319,6 +447,7 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
                     child: TextField(
                       controller: _bioCtrl,
                       maxLines: 4,
+                      textInputAction: TextInputAction.newline,
                       decoration: const InputDecoration(
                         hintText: "Cuéntales un poco sobre ti...",
                         border: OutlineInputBorder(),
@@ -341,6 +470,7 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
                       },
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
+                        hintText: "Selecciona tu género",
                       ),
                     ),
                   ),
@@ -362,6 +492,7 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
                       },
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
+                        hintText: "Selecciona una opción",
                       ),
                     ),
                   ),
@@ -371,6 +502,7 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
                     title: "A qué te dedicas",
                     child: TextField(
                       controller: _jobCtrl,
+                      textInputAction: TextInputAction.done,
                       decoration: const InputDecoration(
                         hintText: "Ej. Diseñador gráfico",
                         border: OutlineInputBorder(),
@@ -387,7 +519,9 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
                         Text(
                           _selectedLatitude != null &&
                                   _selectedLongitude != null
-                              ? "Ubicación actual detectada correctamente"
+                              ? "Ubicación detectada correctamente"
+                              : _loadingLocation
+                              ? "Obteniendo ubicación..."
                               : "Aún no se ha definido ubicación exacta.",
                         ),
                         const SizedBox(height: 6),
@@ -395,12 +529,34 @@ class _OnboardingProfilePageState extends State<OnboardingProfilePage> {
                             _selectedLongitude != null)
                           Text(
                             "Lat: ${_selectedLatitude!.toStringAsFixed(6)} | Lng: ${_selectedLongitude!.toStringAsFixed(6)}",
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: cs.onSurface.withOpacity(0.65),
+                                ),
                           ),
                         const SizedBox(height: 10),
                         OutlinedButton.icon(
-                          onPressed: _useRealLocation,
-                          icon: const Icon(Icons.my_location_rounded),
-                          label: const Text("Usar mi ubicación actual"),
+                          onPressed: _loadingLocation ? null : _useRealLocation,
+                          icon: _loadingLocation
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.my_location_rounded),
+                          label: Text(
+                            _loadingLocation
+                                ? "Obteniendo ubicación..."
+                                : "Usar mi ubicación actual",
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Si el GPS tarda demasiado, podrás continuar con una ubicación referencial.",
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: cs.onSurface.withOpacity(0.55)),
                         ),
                       ],
                     ),

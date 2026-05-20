@@ -170,8 +170,6 @@ class ApiService {
       await _prefs.saveAccessToken(access);
 
       final savedAccess = await _prefs.getAccessToken();
-      print("ACCESS EN MEMORIA => $access");
-      print("ACCESS GUARDADO => $savedAccess");
 
       final refresh = _pickRefresh(data);
       if (refresh != null && refresh.isNotEmpty) {
@@ -187,20 +185,30 @@ class ApiService {
   }
 
   // ================== INFO USER ==================
-  Future<Map<String, dynamic>> infoUser({required String accessToken}) async {
+  Future<Map<String, dynamic>> infoUser({String? accessToken}) async {
     final response = await _requestWithRefresh((token) {
-      return http.get(
-        Uri.parse(ApiEndpoints.infoUser),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      return http
+          .get(
+            Uri.parse(ApiEndpoints.infoUser),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-Service-Code': AppConfig.serviceCode,
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 20));
     });
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is Map<String, dynamic>) {
+        await _prefs.saveUserInfo(decoded);
+        return decoded;
+      }
+
+      throw Exception('Respuesta inválida en infoUser');
     }
 
     throw Exception(
@@ -220,25 +228,41 @@ class ApiService {
     if (fcmToken != null && fcmToken.isNotEmpty) {
       payload['use_txt_fcm'] = fcmToken;
     }
-    if (latitude != null) payload['use_double_latitude'] = latitude;
-    if (longitude != null) payload['use_double_longitude'] = longitude;
 
-    if (payload.isEmpty) return;
+    if (latitude != null) {
+      payload['use_double_latitude'] = latitude;
+    }
+
+    if (longitude != null) {
+      payload['use_double_longitude'] = longitude;
+    }
+
+    if (payload.isEmpty) {
+      debugPrint('ℹ️ patchUserDevice sin datos para enviar');
+      return;
+    }
 
     final response = await _requestWithRefresh((token) {
-      return http.patch(
-        Uri.parse('${ApiEndpoints.fcmToken}$userId/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Service-Code': AppConfig.serviceCode,
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(payload),
-      );
+      return http
+          .patch(
+            Uri.parse('${ApiEndpoints.fcmToken}$userId/'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-Service-Code': AppConfig.serviceCode,
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 20));
     });
 
-    if (response.statusCode == 200 || response.statusCode == 201) return;
+    if (response.statusCode == 200 ||
+        response.statusCode == 201 ||
+        response.statusCode == 204) {
+      debugPrint('✅ Dispositivo actualizado correctamente');
+      return;
+    }
 
     throw Exception(
       'Failed to patch user device: ${response.statusCode} - ${response.body}',
@@ -937,12 +961,16 @@ class ApiService {
     int? radiusKm,
     int? ageMin,
     int? ageMax,
+    String? targetGender,
+    String? lookingFor,
   }) async {
     final body = <String, dynamic>{};
 
     if (radiusKm != null) body["ddp_int_radius_km"] = radiusKm;
     if (ageMin != null) body["ddp_int_age_min"] = ageMin;
     if (ageMax != null) body["ddp_int_age_max"] = ageMax;
+    if (targetGender != null) body["ddp_txt_target_gender"] = targetGender;
+    if (lookingFor != null) body["ddp_txt_looking_for"] = lookingFor;
 
     final response = await _requestWithRefresh((token) {
       return http.patch(
@@ -1126,6 +1154,7 @@ class ApiService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
+          'X-Service-Code': AppConfig.serviceCode,
         },
         body: jsonEncode(data),
       );
@@ -1482,6 +1511,39 @@ class ApiService {
 
     throw Exception(
       'Failed to logout: ${response.statusCode} - ${response.body}',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getReceivedLikes() async {
+    final response = await _requestWithRefresh((token) {
+      return http.get(
+        Uri.parse(ApiEndpoints.receivedLikes),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+    });
+
+    print("RECEIVED LIKES STATUS: ${response.statusCode}");
+    print("RECEIVED LIKES BODY: ${response.body}");
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is List) {
+        return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+
+      if (decoded is Map<String, dynamic> && decoded["results"] is List) {
+        return (decoded["results"] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+    }
+
+    throw Exception(
+      "Error cargando likes recibidos: ${response.statusCode} - ${response.body}",
     );
   }
 }

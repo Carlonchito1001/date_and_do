@@ -116,6 +116,19 @@ class _DdDiscoverState extends State<DdDiscover>
     }
   }
 
+  Future<void> _openPreferencesAndReload() async {
+    final changed = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => MatchPreferencesPage()),
+    );
+
+    if (!mounted) return;
+
+    if (changed == true) {
+      await _loadSuggestions();
+    }
+  }
+
   Future<void> _showNewMatchScreen(Map<String, dynamic> match) async {
     final other = match["other_user"] as Map<String, dynamic>?;
     if (other == null) return;
@@ -203,9 +216,21 @@ class _DdDiscoverState extends State<DdDiscover>
 
       if (!mounted) return;
 
-      if (currentIndex < users.length - 1) {
-        setState(() => currentIndex++);
-      } else {
+      setState(() {
+        if (users.isNotEmpty &&
+            currentIndex >= 0 &&
+            currentIndex < users.length) {
+          users.removeAt(currentIndex);
+        }
+
+        if (users.isEmpty) {
+          currentIndex = 0;
+        } else if (currentIndex >= users.length) {
+          currentIndex = users.length - 1;
+        }
+      });
+
+      if (users.isEmpty) {
         await _loadSuggestions();
       }
     } catch (e) {
@@ -489,12 +514,7 @@ class _DdDiscoverState extends State<DdDiscover>
                 borderRadius: BorderRadius.circular(18),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(18),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => MatchPreferencesPage()),
-                    );
-                  },
+                  onTap: _openPreferencesAndReload,
                   child: Container(
                     width: 54,
                     height: 54,
@@ -538,7 +558,10 @@ class _DdDiscoverState extends State<DdDiscover>
     }
 
     if (users.isEmpty) {
-      return _EmptyDiscoverState(onRefresh: _loadSuggestions);
+      return _EmptyDiscoverState(
+        onRefresh: _loadSuggestions,
+        onOpenPreferences: _openPreferencesAndReload,
+      );
     }
 
     return Scaffold(
@@ -854,8 +877,12 @@ class _DiscoverSkeletonState extends State<_DiscoverSkeleton>
 
 class _EmptyDiscoverState extends StatelessWidget {
   final Future<void> Function() onRefresh;
+  final Future<void> Function() onOpenPreferences;
 
-  const _EmptyDiscoverState({required this.onRefresh});
+  const _EmptyDiscoverState({
+    required this.onRefresh,
+    required this.onOpenPreferences,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -926,14 +953,7 @@ class _EmptyDiscoverState extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => MatchPreferencesPage(),
-                        ),
-                      );
-                    },
+                    onPressed: () => onOpenPreferences(),
                     icon: const Icon(Icons.tune_rounded),
                     label: const Text('Ajustar preferencias'),
                     style: OutlinedButton.styleFrom(

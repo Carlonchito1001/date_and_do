@@ -74,16 +74,19 @@ class _SplashPageState extends State<SplashPage>
     }
 
     try {
-      debugPrint("🚀 Antes de initFCM");
+      debugPrint("🚀 Sincronizando FCM desde SplashPage");
       await FcmService.initFCM();
-      debugPrint("✅ Después de initFCM");
+      await FcmService.syncTokenWithBackendIfPossible();
+      debugPrint("✅ FCM revisado desde SplashPage");
     } catch (e) {
-      debugPrint("❌ Error initFCM: $e");
+      debugPrint("❌ Error revisando FCM desde SplashPage: $e");
     }
 
     try {
       await SessionBootstrapService().ensureDeviceData();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint("⚠️ Error en ensureDeviceData: $e");
+    }
 
     if (!mounted) return;
     _goPostLoginGate();
@@ -145,7 +148,7 @@ class _SplashPageState extends State<SplashPage>
                       ),
                       padding: const EdgeInsets.all(18),
                       child: Image.asset(
-                        'assets/datedo.png',
+                        'assets/date.png',
                         fit: BoxFit.contain,
                       ),
                     ),
