@@ -46,13 +46,21 @@ class _DdLoginState extends State<DdLogin> {
       final DdUser user = await _googleAuth.signInWithGoogle();
       print('✅ Google login OK: $user');
 
-      print('🚀 Iniciando FCM después del login...');
-      await FcmService.initFCM();
-      print('✅ FCM inicializado después del login');
+      try {
+  print('🚀 Iniciando FCM después del login...');
+  await FcmService.initFCM();
+  print('✅ FCM inicializado después del login');
+} catch (e) {
+  print('⚠️ FCM no disponible en iOS dev: $e');
+}
 
-      print('🚀 Enviando token/ubicación al backend...');
-      await SessionBootstrapService().ensureDeviceData();
-      print('✅ Token/ubicación enviados al backend');
+try {
+  print('🚀 Enviando token/ubicación al backend...');
+  await SessionBootstrapService().ensureDeviceData();
+  print('✅ Token/ubicación enviados al backend');
+} catch (e) {
+  print('⚠️ Error bootstrap device data: $e');
+}
 
       if (!mounted) return;
 
