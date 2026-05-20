@@ -185,177 +185,179 @@ class DiscoverCard extends StatelessWidget {
           ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: Column(
-          children: [
-            SizedBox(
-              height: 390,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (photoBase64.isNotEmpty || avatar.isNotEmpty)
-                    UserPhotoView(
-                      base64String: photoBase64,
-                      fallbackUrl: avatar,
-                      fit: BoxFit.cover,
-                      errorWidget: fallbackAvatar(),
-                    )
-                  else
-                    fallbackAvatar(),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              SizedBox(
+                height: MediaQuery.of(context).size.height * 0.48,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (photoBase64.isNotEmpty || avatar.isNotEmpty)
+                      UserPhotoView(
+                        base64String: photoBase64,
+                        fallbackUrl: avatar,
+                        fit: BoxFit.cover,
+                        errorWidget: fallbackAvatar(),
+                      )
+                    else
+                      fallbackAvatar(),
 
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.06),
-                          Colors.black.withOpacity(0.18),
-                          Colors.black.withOpacity(0.65),
-                        ],
-                        stops: const [0.0, 0.35, 1.0],
-                      ),
-                    ),
-                  ),
-
-                  Positioned(
-                    top: 18,
-                    left: 18,
-                    right: 18,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: buildSoftChip(
-                            icon: Icons.location_on_rounded,
-                            label: locationText(),
-                            dark: true,
-                          ),
-                        ),
-                        if (_lookingForLabel(lookingFor).isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          buildSoftChip(
-                            icon: Icons.favorite_rounded,
-                            label: _lookingForLabel(lookingFor),
-                            color: Colors.pinkAccent,
-                            dark: true,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-
-                  Positioned(
-                    left: 20,
-                    right: 20,
-                    bottom: 20,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '$name${age.isNotEmpty ? ', $age' : ''}',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: txt.headlineMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            height: 1.0,
-                            shadows: const [
-                              Shadow(
-                                color: Colors.black54,
-                                blurRadius: 10,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (job.isNotEmpty ||
-                            _genderLabel(gender).isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              if (job.isNotEmpty)
-                                buildSoftChip(
-                                  icon: Icons.work_rounded,
-                                  label: job,
-                                  dark: true,
-                                ),
-                              if (_genderLabel(gender).isNotEmpty)
-                                buildSoftChip(
-                                  icon: Icons.person_rounded,
-                                  label: _genderLabel(gender),
-                                  dark: true,
-                                ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (mainText.isNotEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
+                    DecoratedBox(
                       decoration: BoxDecoration(
-                        color: cs.surfaceContainerHighest.withOpacity(0.34),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: cs.outlineVariant.withOpacity(0.22),
-                        ),
-                      ),
-                      child: Text(
-                        mainText,
-                        maxLines: 4,
-                        overflow: TextOverflow.ellipsis,
-                        style: txt.bodyLarge?.copyWith(
-                          height: 1.45,
-                          color: cs.onSurface.withOpacity(0.88),
-                          fontWeight: FontWeight.w500,
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.06),
+                            Colors.black.withOpacity(0.18),
+                            Colors.black.withOpacity(0.65),
+                          ],
+                          stops: const [0.0, 0.35, 1.0],
                         ),
                       ),
                     ),
 
-                  if (interestList.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.interests_rounded,
-                          size: 18,
-                          color: cs.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Intereses',
-                          style: txt.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: cs.onSurface,
+                    Positioned(
+                      top: 18,
+                      left: 18,
+                      right: 18,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: buildSoftChip(
+                              icon: Icons.location_on_rounded,
+                              label: locationText(),
+                              dark: true,
+                            ),
                           ),
-                        ),
-                      ],
+                          if (_lookingForLabel(lookingFor).isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            buildSoftChip(
+                              icon: Icons.favorite_rounded,
+                              label: _lookingForLabel(lookingFor),
+                              color: Colors.pinkAccent,
+                              dark: true,
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: interestList
-                          .map((e) => InterestChip(label: e))
-                          .toList(),
+
+                    Positioned(
+                      left: 20,
+                      right: 20,
+                      bottom: 20,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$name${age.isNotEmpty ? ', $age' : ''}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: txt.headlineMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              height: 1.0,
+                              shadows: const [
+                                Shadow(
+                                  color: Colors.black54,
+                                  blurRadius: 10,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (job.isNotEmpty ||
+                              _genderLabel(gender).isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                if (job.isNotEmpty)
+                                  buildSoftChip(
+                                    icon: Icons.work_rounded,
+                                    label: job,
+                                    dark: true,
+                                  ),
+                                if (_genderLabel(gender).isNotEmpty)
+                                  buildSoftChip(
+                                    icon: Icons.person_rounded,
+                                    label: _genderLabel(gender),
+                                    dark: true,
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (mainText.isNotEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: cs.surfaceContainerHighest.withOpacity(0.34),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: cs.outlineVariant.withOpacity(0.22),
+                          ),
+                        ),
+                        child: Text(
+                          mainText,
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                          style: txt.bodyLarge?.copyWith(
+                            height: 1.45,
+                            color: cs.onSurface.withOpacity(0.88),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+
+                    if (interestList.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.interests_rounded,
+                            size: 18,
+                            color: cs.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Intereses',
+                            style: txt.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: interestList
+                            .map((e) => InterestChip(label: e))
+                            .toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

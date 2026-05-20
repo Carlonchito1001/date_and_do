@@ -9,6 +9,7 @@ import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/navigation/app_navigator.dart';
 import 'package:date_and_doing/views/home/dd_chat_page.dart';
 import 'package:date_and_doing/views/home/matches/match_profile_page.dart';
+import 'dart:io';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -85,10 +86,16 @@ class FcmService {
     _isInitialized = true;
 
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
+    
     await _requestPermissionSafe();
 
-    await obtainAndStoreFcmToken();
+    final token = await obtainAndStoreFcmToken();
+
+    if (Platform.isIOS && (token == null || token.isEmpty)) {
+        debugPrint('⚠️ iOS sin APNS/FCM token. Se omite FCM para no bloquear la app.');
+        debugPrint('✅ initFCM terminó sin token en iOS dev');
+        return;
+    }
 
     _registerListenersOnce();
 
@@ -226,6 +233,15 @@ class FcmService {
         debugPrint('⚠️ FCM token vacío en intento $attempt');
       } catch (e) {
         debugPrint('⚠️ Error obteniendo FCM token intento $attempt: $e');
+
+        final errorText = e.toString();
+        
+        if (Platform.isIOS && errorText.contains('apns-token-not-set')) {
+            debugPrint('⚠️ APNS no disponible en iOS dev. Continuando sin bloquear.');
+            await _markFcmPendingSync(true);
+            return null;
+        }
+
       }
 
       await Future.delayed(Duration(seconds: attempt * 2));

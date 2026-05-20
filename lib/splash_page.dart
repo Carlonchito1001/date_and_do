@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:date_and_doing/api/api_service.dart';
 import 'package:date_and_doing/auth/post_login_gate_page.dart';
 import 'package:date_and_doing/services/fcm_service.dart';
@@ -67,7 +69,8 @@ class _SplashPageState extends State<SplashPage>
         _goLogin();
         return;
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint("⚠️ Error validando sesión en SplashPage: $e");
       await _prefs.clearSession();
       _goLogin();
       return;
@@ -79,11 +82,21 @@ class _SplashPageState extends State<SplashPage>
       await FcmService.syncTokenWithBackendIfPossible();
       debugPrint("✅ FCM revisado desde SplashPage");
     } catch (e) {
-      debugPrint("❌ Error revisando FCM desde SplashPage: $e");
+      debugPrint("⚠️ Error revisando FCM desde SplashPage: $e");
     }
 
     try {
-      await SessionBootstrapService().ensureDeviceData();
+      debugPrint("🚀 Entrando a ensureDeviceData");
+
+      if (Platform.isIOS) {
+        await SessionBootstrapService()
+            .ensureDeviceData()
+            .timeout(const Duration(seconds: 5));
+      } else {
+        await SessionBootstrapService().ensureDeviceData();
+      }
+
+      debugPrint("✅ ensureDeviceData terminado");
     } catch (e) {
       debugPrint("⚠️ Error en ensureDeviceData: $e");
     }

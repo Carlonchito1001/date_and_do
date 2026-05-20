@@ -753,7 +753,7 @@ class _DiscoverSkeletonState extends State<_DiscoverSkeleton>
               ),
             ),
             Expanded(
-              child: Center(
+              child: SingleChildScrollView(
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 18),
                   decoration: BoxDecoration(

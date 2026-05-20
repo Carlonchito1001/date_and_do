@@ -244,7 +244,7 @@ class _DdHomeState extends State<DdHome> with TickerProviderStateMixin {
             ],
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _NavBarItem(
                 icon: Icons.explore_rounded,
@@ -352,7 +352,7 @@ class _NavBarItemState extends State<_NavBarItem>
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 240),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           decoration: BoxDecoration(
             color: widget.isSelected
                 ? cs.primary.withOpacity(0.12)
